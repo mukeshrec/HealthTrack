@@ -1,0 +1,85 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id               String           @id @default(uuid())
+  healthId         String?          @unique // e.g. HT-A1B2C3. Only required for patients.
+  email            String           @unique
+  passwordHash     String
+  name             String
+  role             String           @default("patient")
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  patientProfile   PatientProfile?
+  careConnectionsAsPatient   CareConnection[] @relation("PatientConnections")
+  careConnectionsAsCaregiver CareConnection[] @relation("CaregiverConnections")
+}
+
+model CareConnection {
+  id           String   @id @default(uuid())
+  patientId    String
+  patient      User     @relation("PatientConnections", fields: [patientId], references: [id], onDelete: Cascade)
+  caregiverId  String
+  caregiver    User     @relation("CaregiverConnections", fields: [caregiverId], references: [id], onDelete: Cascade)
+  status       String   @default("PENDING") // PENDING, ACCEPTED, REJECTED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([patientId, caregiverId])
+}
+
+model PatientProfile {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  personalDetails     Json?    
+  existingConditions  String[] 
+  allergies           String[] 
+  bloodGroup          String?  
+  emergencyContacts   Json?    
+  preferredLanguage   String?  
+  doctorInformation   Json?    
+  medicalHistory      String?  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  documents           HealthDocument[]
+  events              HealthEvent[]
+}
+
+model HealthDocument {
+  id              String         @id @default(uuid())
+  patientId       String
+  patient         PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  fileUrl         String
+  fileType        String
+  uploadDate      DateTime       @default(now())
+  documentDate    DateTime?
+  source          String?
+  description     String?
+  status          String         @default("PENDING") // PENDING, EXTRACTED, FAILED
+  events          HealthEvent[]
+}
+
+model HealthEvent {
+  id                 String          @id @default(uuid())
+  patientId          String
+  patient            PatientProfile  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  eventType          String          // Condition, Medication, Lab, Hospitalization, Consultation, Observation, Appointment
+  eventDate          DateTime
+  isFuture           Boolean         @default(false)
+  title              String
+  description        String?
+  provenance         String          @default("PATIENT_REPORTED") // PATIENT_REPORTED, CAREGIVER_REPORTED, AI_EXTRACTED, DOCTOR_DOCUMENTED
+  verificationStatus String          @default("UNVERIFIED")       // UNVERIFIED, VERIFIED, CONFLICTING
+  sourceDocumentId   String?
+  sourceDocument     HealthDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  metadata           Json?           // Specific structured data depending on eventType
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+}

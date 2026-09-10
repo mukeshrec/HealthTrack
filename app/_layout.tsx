@@ -1,28 +1,66 @@
 /**
  * Root Layout — Health Memory App
- *
- * Configures fonts, splash screen, and the root stack navigator.
- * Uses a light theme optimized for elderly readability.
  */
 
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
+import { AuthProvider, useAuth } from '../src/context/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export {
-  // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
-} from 'expo-router';
+export { ErrorBoundary } from 'expo-router';
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
 };
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
+
+function RootLayoutNav() {
+  const { user, isLoading, onboardingComplete } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const inAuthGroup = segments[0] === 'login' || segments[0] === 'register';
+
+    if (!user && !inAuthGroup) {
+      // Not logged in -> go to login
+      router.replace('/login');
+    } else if (user && inAuthGroup) {
+      // Logged in and on login/register -> redirect appropriately
+      if (user.role === 'patient' && !onboardingComplete) {
+        router.replace('/onboarding');
+      } else {
+        router.replace('/(tabs)');
+      }
+    } else if (user && user.role === 'patient' && !onboardingComplete && segments[0] !== 'onboarding') {
+      // Patient hasn't completed onboarding -> force onboarding
+      router.replace('/onboarding');
+    } else if (user && onboardingComplete && segments[0] === 'onboarding') {
+      // Onboarding complete, get out of onboarding page
+      router.replace('/(tabs)');
+    }
+  }, [user, isLoading, segments, onboardingComplete]);
+
+  return (
+    <>
+      <StatusBar style="dark" />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#F8F9FC' } }}>
+        <Stack.Screen name="login" />
+        <Stack.Screen name="register" />
+        <Stack.Screen name="onboarding" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="modal" options={{ presentation: 'modal', headerShown: true, headerTitle: '' }} />
+      </Stack>
+    </>
+  );
+}
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -39,29 +77,11 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
-  if (!loaded) {
-    return null;
-  }
+  if (!loaded) return null;
 
   return (
-    <>
-      <StatusBar style="dark" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: '#F8F9FC' },
-        }}
-      >
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="modal"
-          options={{
-            presentation: 'modal',
-            headerShown: true,
-            headerTitle: '',
-          }}
-        />
-      </Stack>
-    </>
+    <AuthProvider>
+      <RootLayoutNav />
+    </AuthProvider>
   );
 }

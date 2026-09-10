@@ -22,6 +22,7 @@ import type { Medication, DailyHealthCheck } from '../../types';
 interface TodaysCareProps {
   medications: Medication[];
   dailyCheck: DailyHealthCheck;
+  role?: string;
 }
 
 const MedicationRow: React.FC<{ medication: Medication }> = ({ medication }) => {
@@ -110,11 +111,12 @@ const DailyCheckRow: React.FC<{ check: DailyHealthCheck }> = ({ check }) => {
 export const TodaysCare: React.FC<TodaysCareProps> = ({
   medications,
   dailyCheck,
+  role = 'patient',
 }) => {
   return (
     <View style={styles.container}>
       <SectionHeader
-        title="Today's Care"
+        title={role === 'patient' ? "Today's Care" : "Lakshmi's Today's Care"}
         icon="clipboard-outline"
         onSeeAll={() => {}}
       />

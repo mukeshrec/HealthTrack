@@ -10,23 +10,30 @@ import { StyleSheet, View, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing } from '../../src/theme';
+import { useAuth } from '../../src/context/AuthContext';
+import { Button } from '../../src/components/common/Button';
 
 export default function ProfileScreen() {
+  const { signOut, user } = useAuth();
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.container}>
         <View style={styles.iconContainer}>
           <Ionicons name="person-outline" size={64} color={colors.accent.emergency.icon} />
         </View>
-        <Text style={styles.title}>Profile</Text>
+        <Text style={styles.title}>Profile: {user?.name}</Text>
         <Text style={styles.subtitle}>
-          Your health identity and privacy controls.
+          Role: {user?.role.toUpperCase()}
         </Text>
         <Text style={styles.description}>
           Manage consent, guardian access, data sharing preferences, and your personal health profile.
         </Text>
         <View style={styles.badge}>
           <Text style={styles.badgeText}>Coming in Phase 1</Text>
+        </View>
+        <View style={{ marginTop: spacing.xxl }}>
+          <Button title="Sign Out" onPress={signOut} variant="outline" />
         </View>
       </View>
     </SafeAreaView>

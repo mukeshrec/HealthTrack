@@ -20,6 +20,7 @@ import { TodaysCare } from '../../src/components/home/TodaysCare';
 import { RecentUpdates } from '../../src/components/home/RecentUpdates';
 import { UpcomingAppointments } from '../../src/components/home/UpcomingAppointments';
 import { colors, spacing } from '../../src/theme';
+import { useAuth } from '../../src/context/AuthContext';
 import {
   currentPatient,
   quickActions,
@@ -29,7 +30,26 @@ import {
   upcomingAppointments,
 } from '../../src/constants/mockData';
 
+import { CaregiverDashboard } from '../../src/components/home/CaregiverDashboard';
+
 export default function HomeScreen() {
+  const { user } = useAuth();
+
+  // Create a patient mock with the current user's details for the header
+  const headerPatient = {
+    ...currentPatient,
+    firstName: user?.name?.split(' ')[0] || currentPatient.firstName,
+    lastName: user?.name?.split(' ')[1] || currentPatient.lastName,
+  };
+
+  if (user?.role === 'caregiver') {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <CaregiverDashboard />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView
@@ -38,10 +58,10 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Header: Logo + Bell + Avatar */}
-        <Header patient={currentPatient} />
+        <Header patient={headerPatient} />
 
         {/* Greeting Card */}
-        <GreetingCard patientName={currentPatient.firstName} />
+        <GreetingCard patientName={user?.name || currentPatient.firstName} role={user?.role} />
 
         {/* Quick Action Cards */}
         <QuickActions actions={quickActions} />
@@ -50,6 +70,7 @@ export default function HomeScreen() {
         <TodaysCare
           medications={medications}
           dailyCheck={dailyHealthCheck}
+          role={user?.role}
         />
 
         {/* Bottom Row: Recent Updates | Upcoming Appointments */}

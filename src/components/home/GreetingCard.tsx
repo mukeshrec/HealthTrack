@@ -17,6 +17,7 @@ import { colors, typography, spacing, borderRadius } from '../../theme';
 
 interface GreetingCardProps {
   patientName: string;
+  role?: string;
 }
 
 const getGreeting = (): string => {
@@ -33,7 +34,7 @@ const getGreetingEmoji = (): string => {
   return '🌙';
 };
 
-export const GreetingCard: React.FC<GreetingCardProps> = ({ patientName }) => {
+export const GreetingCard: React.FC<GreetingCardProps> = ({ patientName, role = 'patient' }) => {
   return (
     <LinearGradient
       colors={['#E8F5EE', '#D4EFE3', '#C8EBD8']}
@@ -47,11 +48,15 @@ export const GreetingCard: React.FC<GreetingCardProps> = ({ patientName }) => {
           <Text style={styles.greeting}>
             {getGreeting()},
           </Text>
-          <Text style={styles.name}>
+          <Text style={styles.name} numberOfLines={1}>
             {patientName} {getGreetingEmoji()}
           </Text>
           <Text style={styles.subtitle}>
-            Let's take care of your health today.
+            {role === 'patient' 
+              ? "Let's take care of your health today."
+              : role === 'guardian'
+              ? "Here's an update on Lakshmi's health."
+              : "Review your patient's daily status."}
           </Text>
         </View>
 

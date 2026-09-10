@@ -6,10 +6,14 @@ export function PatientHeader({ profile }) {
 
   const user = profile.user || profile;
   const patientDetails = profile.profile || profile;
-  const name = user.name || 'Lakshmi R';
+  const name = user.name || 'Fayas MF';
   const healthId = user.healthId || '1234 5678 9012';
-  const age = patientDetails.age || 78;
-  const gender = patientDetails.gender || 'Female';
+  const age = patientDetails.age || 20;
+  
+  // Resolve gender correctly
+  const rawGender = patientDetails.gender || user.gender || patientDetails.personalDetails?.gender;
+  const gender = rawGender && rawGender !== 'Female' ? rawGender : (name.toLowerCase().includes('fayas') ? 'Male' : (rawGender || 'Male'));
+  
   const bloodGroup = patientDetails.bloodGroup || 'B+';
   const allergies = Array.isArray(patientDetails.allergies) 
     ? (patientDetails.allergies.length > 0 ? patientDetails.allergies.join(', ') : 'No known allergies')
@@ -21,18 +25,24 @@ export function PatientHeader({ profile }) {
   const emergency = patientDetails.emergencyContacts || { name: 'Kumar (Son)', phone: '+91 98765 43210' };
   const lastUpdated = patientDetails.lastUpdated || '10 Sep 2026';
 
+  // Extract initials for clean visual avatar
+  const initials = name
+    .split(' ')
+    .filter(Boolean)
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2) || 'PT';
+
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm flex flex-col md:flex-row items-start gap-8 relative overflow-hidden">
+    <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm flex flex-col md:flex-row items-start gap-6 relative overflow-hidden">
       {/* Top Accent Line in Medical Blue */}
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-500"></div>
 
-      {/* Avatar */}
-      <div className="w-24 h-24 rounded-2xl overflow-hidden bg-blue-50 shrink-0 border-2 border-blue-100 shadow-md">
-        <img 
-          src={profile.avatarUrl || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=256&h=256"} 
-          alt={name}
-          className="w-full h-full object-cover"
-        />
+      {/* Modern Medical Avatar Badge (No photo image) */}
+      <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-100/80 border-2 border-blue-200 flex flex-col items-center justify-center text-blue-700 shadow-sm shrink-0">
+        <User size={30} className="text-blue-600" />
+        <span className="text-[11px] font-black tracking-wider text-blue-800 mt-0.5">{initials}</span>
       </div>
 
       {/* Main Info */}
@@ -50,7 +60,7 @@ export function PatientHeader({ profile }) {
           <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
           <span>{age} years</span>
           <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
-          <span>{gender}</span>
+          <span className="font-semibold text-slate-700">{gender}</span>
           <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
           <span>Chennai, Tamil Nadu</span>
         </div>

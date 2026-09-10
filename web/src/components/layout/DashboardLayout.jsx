@@ -4,10 +4,16 @@ import { TopNav } from './TopNav';
 
 export function DashboardLayout({ children }) {
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen bg-[#F4F7FB] flex font-sans">
+      {/* Fixed Sidebar */}
       <Sidebar />
-      <div className="flex-1 ml-64 flex flex-col">
+
+      {/* Main Content Area */}
+      <div className="flex-1 ml-64 flex flex-col min-w-0">
+        {/* Sticky Top Header */}
         <TopNav />
+
+        {/* Page Content */}
         <main className="flex-1 p-8 overflow-y-auto">
           {children}
         </main>

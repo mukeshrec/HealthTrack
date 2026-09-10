@@ -1,26 +1,73 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #1D4ED8;
-  --color-primary-light: #E0E7FF;
-  --color-secondary: #F8FAFC;
-  --color-background: #F1F5F9;
+  --font-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   
-  --color-text-main: #0F172A;
-  --color-text-muted: #64748B;
+  --color-brand-50: #EFF6FF;
+  --color-brand-100: #DBEAFE;
+  --color-brand-200: #BFDBFE;
+  --color-brand-500: #3B82F6;
+  --color-brand-600: #2563EB;
+  --color-brand-700: #1D4ED8;
+  --color-brand-900: #1E3A8A;
   
-  --color-alert-high-bg: #FEF2F2;
-  --color-alert-high-border: #FCA5A5;
-  --color-alert-high-text: #DC2626;
+  --color-medical-teal: #0D9488;
+  --color-medical-teal-bg: #F0FDFA;
   
-  --color-alert-medium-bg: #FFF7ED;
-  --color-alert-medium-border: #FDBA74;
-  --color-alert-medium-text: #EA580C;
+  --color-surface-card: #FFFFFF;
+  --color-surface-bg: #F4F7FB;
+}
+
+:root {
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 body {
-  background-color: var(--color-background);
-  color: var(--color-text-main);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: #F4F7FB;
+  color: #0F172A;
   margin: 0;
+  overflow-x: hidden;
+}
+
+/* Custom modern scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* Glassmorphism helpers */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.glass-dark {
+  background: rgba(15, 23, 42, 0.25);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Subtle Pulse for Live / Active status */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.08); }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s infinite ease-in-out;
 }

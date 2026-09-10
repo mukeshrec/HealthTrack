@@ -95,6 +95,91 @@ export function CaregiverDashboard() {
     }
   };
 
+  const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
+  const [selectedPatientForSchedule, setSelectedPatientForSchedule] = useState<any>(null);
+  const [scheduledMeds, setScheduledMeds] = useState<Array<{
+    id: string;
+    name: string;
+    dosage: string;
+    time: string;
+    slot: 'Morning' | 'Afternoon' | 'Night';
+    instruction: string;
+    taken: boolean;
+  }>>([
+    {
+      id: 'med-1',
+      name: 'Amlodipine Besylate',
+      dosage: '5 mg (1 tablet)',
+      time: '08:00 AM',
+      slot: 'Morning',
+      instruction: 'Before Breakfast',
+      taken: true,
+    },
+    {
+      id: 'med-2',
+      name: 'Metformin HCl',
+      dosage: '500 mg (1 tablet)',
+      time: '01:30 PM',
+      slot: 'Afternoon',
+      instruction: 'After Lunch',
+      taken: false,
+    },
+    {
+      id: 'med-3',
+      name: 'Atorvastatin',
+      dosage: '10 mg (1 tablet)',
+      time: '08:30 PM',
+      slot: 'Night',
+      instruction: 'After Dinner',
+      taken: false,
+    },
+  ]);
+
+  const [newMedName, setNewMedName] = useState('');
+  const [newMedDosage, setNewMedDosage] = useState('');
+  const [newMedTime, setNewMedTime] = useState('08:00 AM');
+  const [newMedSlot, setNewMedSlot] = useState<'Morning' | 'Afternoon' | 'Night'>('Morning');
+  const [isAddingMed, setIsAddingMed] = useState(false);
+
+  const openMedicineScheduler = (patient: any) => {
+    setSelectedPatientForSchedule(patient);
+    setScheduleModalVisible(true);
+  };
+
+  const toggleMedTaken = (medId: string) => {
+    setScheduledMeds((prev) =>
+      prev.map((m) => (m.id === medId ? { ...m, taken: !m.taken } : m))
+    );
+  };
+
+  const handleAddMedicineDose = () => {
+    if (!newMedName.trim()) {
+      Alert.alert('Required', 'Please enter a medicine name.');
+      return;
+    }
+    const newEntry = {
+      id: `med-${Date.now()}`,
+      name: newMedName.trim(),
+      dosage: newMedDosage.trim() || '1 tablet',
+      time: newMedTime.trim() || '08:00 AM',
+      slot: newMedSlot,
+      instruction: 'As prescribed by physician',
+      taken: false,
+    };
+    setScheduledMeds((prev) => [...prev, newEntry]);
+    setNewMedName('');
+    setNewMedDosage('');
+    setIsAddingMed(false);
+    Alert.alert('Dose Scheduled', `${newEntry.name} scheduled for ${newEntry.time}. Caregiver alerts enabled.`);
+  };
+
+  const sendPatientReminder = (med: any) => {
+    Alert.alert(
+      'Reminder Sent',
+      `Reminder notification for ${med.name} (${med.dosage}) sent to ${selectedPatientForSchedule?.name || 'patient'}.`
+    );
+  };
+
   const renderPatientCard = ({ item }: { item: any }) => (
     <View style={styles.patientCard}>
       <View style={styles.cardHeader}>
@@ -112,14 +197,24 @@ export function CaregiverDashboard() {
         </View>
       </View>
 
+      {/* Action Buttons Row */}
       <View style={styles.cardActionsRow}>
         <TouchableOpacity 
           style={styles.chatActionBtn} 
           onPress={() => router.push(`/chat/${item.id}` as any)}
           activeOpacity={0.8}
         >
-          <Ionicons name="sparkles" size={15} color={colors.neutral.white} />
-          <Text style={styles.chatActionText}>Ask Health Memory AI</Text>
+          <Ionicons name="sparkles" size={14} color={colors.neutral.white} />
+          <Text style={styles.chatActionText}>Ask AI</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.scheduleActionBtn} 
+          onPress={() => openMedicineScheduler(item)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="alarm-outline" size={14} color={colors.neutral.white} />
+          <Text style={styles.scheduleActionText}>Medicine Scheduling</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
@@ -127,7 +222,7 @@ export function CaregiverDashboard() {
           onPress={() => router.push('/(tabs)/health-memory')}
           activeOpacity={0.8}
         >
-          <Ionicons name="time-outline" size={16} color={colors.primary.blue} />
+          <Ionicons name="time-outline" size={15} color={colors.primary.blue} />
           <Text style={styles.viewTimelineText}>Timeline</Text>
         </TouchableOpacity>
       </View>
@@ -177,6 +272,125 @@ export function CaregiverDashboard() {
           showsVerticalScrollIndicator={false}
         />
       )}
+
+      {/* Modal for Medicine Scheduling */}
+      <Modal visible={scheduleModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.scheduleModalContent}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Medicine Scheduling</Text>
+                <Text style={styles.scheduleSubtitle}>
+                  {selectedPatientForSchedule?.name || 'Patient'} • Daily Dose Timetable
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setScheduleModalVisible(false)} style={styles.closeBtn}>
+                <Ionicons name="close" size={20} color={colors.text.primary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.scheduleScrollArea}>
+              {/* Daily Progress Counter */}
+              <View style={styles.progressCard}>
+                <View style={styles.progressTextCol}>
+                  <Text style={styles.progressTitle}>Today's Adherence</Text>
+                  <Text style={styles.progressDesc}>
+                    {scheduledMeds.filter((m) => m.taken).length} of {scheduledMeds.length} doses logged
+                  </Text>
+                </View>
+                <View style={styles.progressBadge}>
+                  <Text style={styles.progressBadgeText}>
+                    {Math.round((scheduledMeds.filter((m) => m.taken).length / Math.max(scheduledMeds.length, 1)) * 100)}%
+                  </Text>
+                </View>
+              </View>
+
+              {/* Medication List */}
+              <Text style={styles.subSectionTitle}>Active Prescribed Doses</Text>
+              <View style={{ gap: spacing.sm, marginBottom: spacing.md }}>
+                {scheduledMeds.map((med) => (
+                  <View key={med.id} style={[styles.medCard, med.taken && styles.medCardTaken]}>
+                    <TouchableOpacity
+                      style={[styles.checkboxCircle, med.taken && styles.checkboxCircleActive]}
+                      onPress={() => toggleMedTaken(med.id)}
+                      activeOpacity={0.8}
+                    >
+                      {med.taken && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+                    </TouchableOpacity>
+
+                    <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                      <Text style={[styles.medName, med.taken && styles.medNameTaken]}>{med.name}</Text>
+                      <Text style={styles.medDetails}>
+                        {med.dosage} • {med.time} ({med.instruction})
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.remindBtn}
+                      onPress={() => sendPatientReminder(med)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="notifications-outline" size={15} color={colors.primary.blue} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+
+              {/* Add New Dose Form Toggle */}
+              {isAddingMed ? (
+                <View style={styles.addDoseForm}>
+                  <Text style={styles.addDoseTitle}>Add New Medication Dose</Text>
+                  <TextInput
+                    style={styles.doseInput}
+                    placeholder="Medicine Name (e.g. Paracetamol)"
+                    placeholderTextColor={colors.text.tertiary}
+                    value={newMedName}
+                    onChangeText={setNewMedName}
+                  />
+                  <TextInput
+                    style={styles.doseInput}
+                    placeholder="Dosage (e.g. 500mg, 1 tablet)"
+                    placeholderTextColor={colors.text.tertiary}
+                    value={newMedDosage}
+                    onChangeText={setNewMedDosage}
+                  />
+                  <View style={styles.slotPickerRow}>
+                    {(['Morning', 'Afternoon', 'Night'] as const).map((slot) => (
+                      <TouchableOpacity
+                        key={slot}
+                        style={[styles.slotChip, newMedSlot === slot && styles.slotChipActive]}
+                        onPress={() => setNewMedSlot(slot)}
+                      >
+                        <Text style={[styles.slotText, newMedSlot === slot && styles.slotTextActive]}>
+                          {slot}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <View style={styles.formBtnRow}>
+                    <TouchableOpacity style={styles.cancelFormBtn} onPress={() => setIsAddingMed(false)}>
+                      <Text style={styles.cancelFormText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.saveDoseBtn} onPress={handleAddMedicineDose}>
+                      <Text style={styles.saveDoseText}>Save Dose</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.addDoseToggleBtn}
+                  onPress={() => setIsAddingMed(true)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="add-circle-outline" size={18} color={colors.primary.blue} />
+                  <Text style={styles.addDoseToggleText}>Add Medication Dose</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Modal for requesting access */}
       <Modal visible={isModalVisible} transparent animationType="fade">
@@ -338,23 +552,40 @@ const styles = StyleSheet.create({
   },
   cardActionsRow: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    alignItems: 'center',
+    gap: 6,
     paddingTop: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
   },
   chatActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: colors.primary.blue,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 8,
+    borderRadius: borderRadius.full,
+  },
+  chatActionText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.neutral.white,
+  },
+  scheduleActionBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    backgroundColor: colors.primary.blue,
-    paddingVertical: spacing.sm + 2,
+    gap: 4,
+    backgroundColor: '#7C3AED',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
     borderRadius: borderRadius.full,
   },
-  chatActionText: {
-    fontSize: 12,
+  scheduleActionText: {
+    fontSize: 11,
     fontWeight: '700',
     color: colors.neutral.white,
   },
@@ -362,23 +593,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 3,
     backgroundColor: colors.primary.sky,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 8,
     borderRadius: borderRadius.full,
   },
   viewTimelineText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: colors.primary.blue,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: spacing.xl,
+    padding: spacing.lg,
   },
   modalContent: {
     backgroundColor: colors.neutral.white,
@@ -386,6 +617,212 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.xxl,
     padding: spacing.xl,
     ...shadows.lg,
+  },
+  scheduleModalContent: {
+    backgroundColor: colors.neutral.white,
+    width: '100%',
+    maxHeight: '85%',
+    borderRadius: borderRadius.xxl,
+    padding: spacing.lg,
+    ...shadows.lg,
+  },
+  scheduleSubtitle: {
+    fontSize: 11,
+    color: colors.text.secondary,
+    marginTop: 2,
+  },
+  scheduleScrollArea: {
+    marginTop: spacing.md,
+  },
+  progressCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F5F3FF',
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: '#EDE9FE',
+    marginBottom: spacing.md,
+  },
+  progressTextCol: {
+    flex: 1,
+  },
+  progressTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6D28D9',
+  },
+  progressDesc: {
+    fontSize: 11,
+    color: '#7C3AED',
+    marginTop: 1,
+  },
+  progressBadge: {
+    backgroundColor: '#7C3AED',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: borderRadius.full,
+  },
+  progressBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  subSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.text.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.sm,
+  },
+  medCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: borderRadius.md,
+    padding: spacing.sm + 2,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  medCardTaken: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#CBD5E1',
+    opacity: 0.85,
+  },
+  checkboxCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#94A3B8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  checkboxCircleActive: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  medName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+  medNameTaken: {
+    textDecorationLine: 'line-through',
+    color: colors.text.tertiary,
+  },
+  medDetails: {
+    fontSize: 11,
+    color: colors.text.secondary,
+    marginTop: 1,
+  },
+  remindBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+  },
+  addDoseForm: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginTop: spacing.xs,
+  },
+  addDoseTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
+  },
+  doseInput: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    fontSize: 12,
+    color: colors.text.primary,
+    marginBottom: spacing.xs + 2,
+  },
+  slotPickerRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginVertical: spacing.xs,
+  },
+  slotChip: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    paddingVertical: 5,
+    alignItems: 'center',
+    borderRadius: borderRadius.sm,
+  },
+  slotChipActive: {
+    backgroundColor: '#7C3AED',
+    borderColor: '#7C3AED',
+  },
+  slotText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.text.secondary,
+  },
+  slotTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  formBtnRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  cancelFormBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  cancelFormText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text.secondary,
+  },
+  saveDoseBtn: {
+    backgroundColor: '#7C3AED',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: borderRadius.sm,
+  },
+  saveDoseText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  addDoseToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 10,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
+    marginTop: spacing.xs,
+  },
+  addDoseToggleText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary.blue,
   },
   modalHeader: {
     flexDirection: 'row',

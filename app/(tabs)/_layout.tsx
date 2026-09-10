@@ -83,8 +83,15 @@ export default function TabLayout() {
     return false;
   };
 
-  // Real-time listener for scheduled doses & guardian triggers
+  // Real-time listener for scheduled doses & guardian triggers (PATIENT PORTAL ONLY)
   useEffect(() => {
+    // Caregivers monitor patients and should NEVER receive the patient's loud voice taking alarm!
+    if (user?.role === 'caregiver') {
+      setIsAlarmModalVisible(false);
+      setAlarmData(null);
+      return;
+    }
+
     const checkAlarmAndSchedules = async () => {
       try {
         const patientTarget = user?.id || 'default-patient';
@@ -197,13 +204,15 @@ export default function TabLayout() {
 
   return (
     <View style={{ flex: 1 }}>
-      {/* Global Medicine Voice Alarm Modal (Sounds on any active tab) */}
-      <MedicineVoiceAlarmModal
-        visible={isAlarmModalVisible}
-        alarmData={alarmData}
-        onDismiss={handleDismissAlarm}
-        onTakeMedicine={handleTurnOffAndTake}
-      />
+      {/* Global Medicine Voice Alarm Modal (Sounds ONLY for Patients, never for Caregivers) */}
+      {user?.role !== 'caregiver' && (
+        <MedicineVoiceAlarmModal
+          visible={isAlarmModalVisible}
+          alarmData={alarmData}
+          onDismiss={handleDismissAlarm}
+          onTakeMedicine={handleTurnOffAndTake}
+        />
+      )}
 
       <Tabs
         screenOptions={{

@@ -881,6 +881,11 @@ app.post('/api/notifications/trigger-alarm', authenticateToken, async (req: any,
 app.get('/api/notifications/active-alarm', authenticateToken, async (req: any, res: any) => {
   const { patientId } = req.query;
   try {
+    // Caregivers monitor patients and should NEVER receive the patient's loud taking alarm on their device
+    if (req.user.role === 'caregiver') {
+      return res.json({ active: false });
+    }
+
     const pid = patientId || req.user.userId;
     const alarm = activeAlarms[pid] || activeAlarms['all'];
     if (alarm && alarm.active) {

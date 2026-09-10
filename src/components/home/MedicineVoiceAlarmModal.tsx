@@ -23,6 +23,8 @@ import { colors, typography, spacing, borderRadius, shadows } from '../../theme'
 
 export interface AlarmPayload {
   id?: string;
+  schedId?: string;
+  doseKey?: string;
   medicineName: string;
   dosage: string;
   instruction: string;

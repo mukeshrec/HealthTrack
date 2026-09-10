@@ -38,13 +38,11 @@ const TabIcon = ({ name, color, size, focused, label }: TabIconProps) => (
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const bottomPadding = Math.max(insets.bottom, 10);
-  const { user, token } = useAuth();
-
-  // Global Medicine Voice Alarm State (Active on all tabs)
+  const { user, token } = useAuth();  // Global Medicine Voice Alarm State (Active on all tabs ONLY FOR PATIENT)
   const [alarmData, setAlarmData] = useState<AlarmPayload | null>(null);
   const [isAlarmModalVisible, setIsAlarmModalVisible] = useState(false);
   const lastAlarmIdRef = useRef<string | null>(null);
-  const triggeredDosesRef = useRef<Set<string>>(new Set());
+  const doseStateMapRef = useRef<Map<string, { status: 'ringing' | 'taken' | 'snoozed'; snoozeUntil?: number }>>(new Map());
 
   // Robust time matching helper for automatic scheduled alarms
   const isTimeDueNow = (schedTime: string) => {
@@ -71,7 +69,7 @@ export default function TabLayout() {
       return true;
     }
 
-    // Check if within 2-minute current window
+    // Check if within 3-minute current window
     const schedTotalMins = (schedMeridian === 'PM' && schedH !== 12 ? (schedH + 12) * 60 : (schedMeridian === 'AM' && schedH === 12 ? 0 : schedH * 60)) + schedM;
     const nowTotalMins = now.getHours() * 60 + now.getMinutes();
     let diff = nowTotalMins - schedTotalMins;
@@ -131,22 +129,35 @@ export default function TabLayout() {
           
           schedules.forEach((sched: any) => {
             if (!sched.taken && sched.time) {
+              const todayDoseKey = `${sched.id || sched.name}-${sched.time}-${new Date().toISOString().split('T')[0]}`;
+              const currentState = doseStateMapRef.current.get(todayDoseKey);
+
+              // Skip if already taken today
+              if (currentState?.status === 'taken') return;
+
+              // Skip if currently snoozed and snooze time not reached
+              if (currentState?.status === 'snoozed' && currentState.snoozeUntil && Date.now() < currentState.snoozeUntil) {
+                return;
+              }
+
+              // Skip if already ringing right now
+              if (currentState?.status === 'ringing' && isAlarmModalVisible) return;
+
               if (isTimeDueNow(sched.time)) {
-                const doseKey = `${sched.id || sched.name}-${sched.time}-${new Date().toDateString()}-${new Date().getHours()}:${new Date().getMinutes()}`;
-                if (!triggeredDosesRef.current.has(doseKey)) {
-                  triggeredDosesRef.current.add(doseKey);
-                  setAlarmData({
-                    id: `sched-${sched.id || Date.now()}`,
-                    medicineName: sched.name,
-                    dosage: sched.dosage || '1 tablet',
-                    instruction: sched.instruction || 'After Food',
-                    slot: sched.slot || 'Morning',
-                    time: sched.time,
-                    senderName: 'Scheduled Regimen Reminder',
-                    patientName: user?.name ? user.name.split(' ')[0] : 'Lakshmi',
-                  });
-                  setIsAlarmModalVisible(true);
-                }
+                doseStateMapRef.current.set(todayDoseKey, { status: 'ringing' });
+                setAlarmData({
+                  id: `sched-${sched.id || Date.now()}`,
+                  schedId: sched.id,
+                  doseKey: todayDoseKey,
+                  medicineName: sched.name,
+                  dosage: sched.dosage || '1 tablet',
+                  instruction: sched.instruction || 'After Food',
+                  slot: sched.slot || 'Morning',
+                  time: sched.time,
+                  senderName: 'Scheduled Regimen Reminder',
+                  patientName: user?.name ? user.name.split(' ')[0] : 'Lakshmi',
+                });
+                setIsAlarmModalVisible(true);
               }
             }
           });
@@ -159,11 +170,16 @@ export default function TabLayout() {
     checkAlarmAndSchedules();
     const interval = setInterval(checkAlarmAndSchedules, 3000);
     return () => clearInterval(interval);
-  }, [user, token]);
+  }, [user, token, isAlarmModalVisible]);
 
   const handleTurnOffAndTake = async () => {
     setIsAlarmModalVisible(false);
+    if (alarmData?.doseKey) {
+      // Mark as completed for today so it will never ring again today
+      doseStateMapRef.current.set(alarmData.doseKey, { status: 'taken' });
+    }
     if (alarmData?.id) {
+      lastAlarmIdRef.current = alarmData.id;
       try {
         await fetch(`${API_BASE_URL}/notifications/dismiss-alarm`, {
           method: 'POST',
@@ -173,6 +189,7 @@ export default function TabLayout() {
           },
           body: JSON.stringify({
             alarmId: alarmData.id,
+            schedId: alarmData.schedId,
             patientId: user?.id,
             taken: true
           })
@@ -184,7 +201,15 @@ export default function TabLayout() {
 
   const handleDismissAlarm = async () => {
     setIsAlarmModalVisible(false);
+    if (alarmData?.doseKey) {
+      // Snooze for 5 minutes instead of re-triggering next minute
+      doseStateMapRef.current.set(alarmData.doseKey, {
+        status: 'snoozed',
+        snoozeUntil: Date.now() + 5 * 60 * 1000
+      });
+    }
     if (alarmData?.id) {
+      lastAlarmIdRef.current = alarmData.id;
       try {
         await fetch(`${API_BASE_URL}/notifications/dismiss-alarm`, {
           method: 'POST',
@@ -194,6 +219,7 @@ export default function TabLayout() {
           },
           body: JSON.stringify({
             alarmId: alarmData.id,
+            schedId: alarmData.schedId,
             patientId: user?.id,
             taken: false
           })

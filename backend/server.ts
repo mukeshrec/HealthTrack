@@ -899,7 +899,7 @@ app.get('/api/notifications/active-alarm', authenticateToken, async (req: any, r
 
 // Dismiss or acknowledge active alarm
 app.post('/api/notifications/dismiss-alarm', authenticateToken, async (req: any, res: any) => {
-  const { alarmId, patientId, taken } = req.body;
+  const { alarmId, patientId, taken, schedId } = req.body;
   try {
     const pid = patientId || req.user.userId;
     if (activeAlarms[pid]) {
@@ -908,7 +908,30 @@ app.post('/api/notifications/dismiss-alarm', authenticateToken, async (req: any,
     if (activeAlarms['all']) {
       activeAlarms['all'].active = false;
     }
-    res.json({ success: true, message: 'Alarm dismissed successfully' });
+
+    // If marked taken, persist to database so it does not repeat
+    const targetEventId = schedId || (alarmId && alarmId.startsWith('sched-') ? alarmId.replace('sched-', '') : null);
+    if (taken && targetEventId && !targetEventId.startsWith('alarm-')) {
+      try {
+        const ev = await prisma.healthEvent.findUnique({ where: { id: targetEventId } });
+        if (ev) {
+          await prisma.healthEvent.update({
+            where: { id: ev.id },
+            data: {
+              metadata: {
+                ...((ev.metadata as any) || {}),
+                taken: true,
+                takenAt: new Date().toISOString(),
+              }
+            }
+          });
+        }
+      } catch (dbErr) {
+        console.warn('Could not mark event taken in db:', dbErr);
+      }
+    }
+
+    res.json({ success: true, message: 'Alarm dismissed and status updated' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to dismiss alarm' });
   }

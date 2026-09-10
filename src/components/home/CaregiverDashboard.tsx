@@ -155,14 +155,80 @@ export function CaregiverDashboard() {
   const [manualMedName, setManualMedName] = useState('');
   const [manualMedDosage, setManualMedDosage] = useState('');
 
+  const formatUserTimeInput = (rawInput: string, selectedMeridian: 'AM' | 'PM' = 'AM') => {
+    if (!rawInput || !rawInput.trim()) {
+      return {
+        timeOnly: selectedMeridian === 'PM' ? '01:30' : '08:00',
+        fullTime: selectedMeridian === 'PM' ? '01:30 PM' : '08:00 AM',
+        meridian: selectedMeridian,
+      };
+    }
+
+    let text = rawInput.trim();
+
+    // 1. Detect meridian from text if explicitly typed (e.g. "1.40 pm", "8am")
+    let meridian: 'AM' | 'PM' = selectedMeridian;
+    if (/pm/i.test(text)) {
+      meridian = 'PM';
+    } else if (/am/i.test(text)) {
+      meridian = 'AM';
+    }
+
+    // 2. Normalize delimiters: replace dots '.', spaces ' ', dashes '-' with colon ':'
+    text = text.replace(/[a-zA-Z]/g, '').trim();
+    text = text.replace(/[\.\s\-_]+/g, ':');
+
+    let hours = 8;
+    let minutes = 0;
+
+    if (text.includes(':')) {
+      const parts = text.split(':').filter(p => p.length > 0);
+      hours = parseInt(parts[0] || '8', 10);
+      minutes = parseInt(parts[1] || '0', 10);
+    } else {
+      // Digits only e.g. "140", "1130", "0140", "830", "1", "9", "12"
+      const digits = text.replace(/[^0-9]/g, '');
+      if (digits.length === 3) {
+        // "140" -> 01:40, "830" -> 08:30
+        hours = parseInt(digits.substring(0, 1), 10);
+        minutes = parseInt(digits.substring(1), 10);
+      } else if (digits.length === 4) {
+        // "0140" -> 01:40, "1130" -> 11:30
+        hours = parseInt(digits.substring(0, 2), 10);
+        minutes = parseInt(digits.substring(2), 10);
+      } else if (digits.length > 0) {
+        // "1" -> 01:00, "9" -> 09:00, "11" -> 11:00
+        hours = parseInt(digits, 10);
+        minutes = 0;
+      }
+    }
+
+    // 3. Handle 24-hour time format conversions (e.g. 13:40 -> 01:40 PM, 23:30 -> 11:30 PM, 00:30 -> 12:30 AM)
+    if (hours > 12 && hours <= 23) {
+      hours = hours - 12;
+      meridian = 'PM';
+    } else if (hours === 0) {
+      hours = 12;
+    }
+
+    hours = isNaN(hours) ? 8 : Math.min(Math.max(hours, 1), 12);
+    minutes = isNaN(minutes) ? 0 : Math.min(Math.max(minutes, 0), 59);
+
+    const formattedHours = String(hours).padStart(2, '0');
+    const formattedMinutes = String(minutes).padStart(2, '0');
+
+    return {
+      timeOnly: `${formattedHours}:${formattedMinutes}`,
+      fullTime: `${formattedHours}:${formattedMinutes} ${meridian}`,
+      meridian,
+    };
+  };
+
   const parseTimeToParts = (rawTime: string) => {
     if (!rawTime) return { time: '08:00', meridian: 'AM' as const };
-    const parts = rawTime.trim().split(/\s+/);
-    const timePart = parts[0] || '08:00';
-    const isPM = parts[1]?.toUpperCase() === 'PM' || rawTime.toUpperCase().includes('PM');
-    const meridianPart: 'AM' | 'PM' = isPM ? 'PM' : 'AM';
-    const cleanedTime = timePart.replace(/[^0-9:]/g, '');
-    return { time: cleanedTime || '08:00', meridian: meridianPart };
+    const initialMeridian: 'AM' | 'PM' = rawTime.toUpperCase().includes('PM') ? 'PM' : 'AM';
+    const { timeOnly, meridian } = formatUserTimeInput(rawTime, initialMeridian);
+    return { time: timeOnly, meridian };
   };
 
   const openMedicineScheduler = async (patient: any) => {
@@ -282,24 +348,9 @@ export function CaregiverDashboard() {
     const medId = selectedMedForTiming ? selectedMedForTiming.id : `med-${Date.now()}`;
     const medSource = selectedMedForTiming?.source || 'Prescription Schedule';
 
-    // Format the time properly with zero-padding and selected AM / PM
-    let cleanTime = customTimeValue.trim().replace(/[^0-9:]/g, '');
-    if (!cleanTime) {
-      cleanTime = '08:00';
-    } else if (!cleanTime.includes(':')) {
-      const num = parseInt(cleanTime, 10);
-      if (!isNaN(num)) {
-        cleanTime = `${String(Math.min(Math.max(num, 1), 12)).padStart(2, '0')}:00`;
-      } else {
-        cleanTime = '08:00';
-      }
-    } else {
-      const [h, m] = cleanTime.split(':');
-      const hr = Math.min(Math.max(parseInt(h || '8', 10), 1), 12);
-      const min = Math.min(Math.max(parseInt(m || '0', 10), 0), 59);
-      cleanTime = `${String(hr).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
-    }
-    const formattedTime = `${cleanTime} ${customTimeMeridian}`;
+    // Format the time properly with zero-padding, dot normalization, and selected AM / PM
+    const { fullTime } = formatUserTimeInput(customTimeValue, customTimeMeridian);
+    const formattedTime = fullTime;
 
     setIsSavingSchedule(true);
     try {

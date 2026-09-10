@@ -22,6 +22,7 @@ interface TodaysCareProps {
   dailyCheck: DailyHealthCheck;
   onSeeAllMedications?: () => void;
   onDailyCheckPress?: () => void;
+  onTestVoiceAlarm?: () => void;
 }
 
 export const TodaysCare: React.FC<TodaysCareProps> = ({
@@ -29,6 +30,7 @@ export const TodaysCare: React.FC<TodaysCareProps> = ({
   dailyCheck,
   onSeeAllMedications,
   onDailyCheckPress,
+  onTestVoiceAlarm,
 }) => {
   const [takenIds, setTakenIds] = useState<string[]>([]);
 
@@ -50,9 +52,23 @@ export const TodaysCare: React.FC<TodaysCareProps> = ({
             <Text style={styles.countBadgeText}>{medications.length} Prescriptions</Text>
           </View>
         </View>
-        <TouchableOpacity onPress={onSeeAllMedications} activeOpacity={0.7}>
-          <Text style={styles.seeAllText}>Manage</Text>
-        </TouchableOpacity>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          {onTestVoiceAlarm && (
+            <TouchableOpacity 
+              style={styles.testAlarmPill}
+              onPress={onTestVoiceAlarm} 
+              activeOpacity={0.7}
+            >
+              <Ionicons name="volume-high" size={12} color="#DC2626" />
+              <Text style={styles.testAlarmPillText}>Test Voice Alarm</Text>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity onPress={onSeeAllMedications} activeOpacity={0.7}>
+            <Text style={styles.seeAllText}>Manage</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Medication List Card */}
@@ -323,5 +339,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  testAlarmPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  testAlarmPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#DC2626',
   },
 });

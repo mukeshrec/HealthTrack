@@ -20,7 +20,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -41,6 +41,7 @@ interface SelectedFile {
 export default function UploadScreen() {
   const { token } = useAuth();
   const router = useRouter();
+  const params = useLocalSearchParams<{ patientId?: string }>();
   const [file, setFile] = useState<SelectedFile | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStep, setUploadStep] = useState<string>('');
@@ -111,12 +112,12 @@ export default function UploadScreen() {
     }
   };
 
-  // Capture Photo with Camera
+  // Take Photo with Camera
   const takePhoto = async () => {
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('Permission Denied', 'Please allow camera access to photograph prescriptions.');
+        Alert.alert('Permission Denied', 'Please allow camera access to capture prescription records.');
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
@@ -126,10 +127,11 @@ export default function UploadScreen() {
       });
       if (result.canceled || !result.assets || result.assets.length === 0) return;
       const asset = result.assets[0];
+
       setFile({
         uri: asset.uri,
-        name: `camera_prescription_${Date.now()}.jpg`,
-        mimeType: 'image/jpeg',
+        name: `prescription_cam_${Date.now()}.jpg`,
+        mimeType: asset.mimeType || 'image/jpeg',
         base64: asset.base64 || undefined,
         size: asset.fileSize,
       });
@@ -140,12 +142,17 @@ export default function UploadScreen() {
   };
 
   const handleUpload = async () => {
-    if (!file) return;
+    if (!file) {
+      Alert.alert('Select File', 'Please select a prescription or medical document to proceed.');
+      return;
+    }
+
     setIsUploading(true);
-    setUploadStep('Uploading document to secure server...');
-    await delay(1200);
+    setUploadStep('Connecting to MyCare+ Health Engine...');
 
     try {
+      await delay(1200);
+
       let base64String = file.base64;
       if (!base64String && file.uri) {
         try {
@@ -176,6 +183,7 @@ export default function UploadScreen() {
           documentDate: new Date().toISOString(),
           source: 'Mobile Upload',
           description: 'Uploaded Medical Prescription / Lab Report',
+          patientId: params.patientId || undefined,
         }),
       });
 

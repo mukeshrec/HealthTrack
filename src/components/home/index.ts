@@ -6,3 +6,4 @@ export * from './TodaysCare';
 export * from './UpcomingAppointments';
 export * from './RecentUpdates';
 export * from './CaregiverDashboard';
+export * from './MedicineVoiceAlarmModal';

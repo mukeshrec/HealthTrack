@@ -341,30 +341,35 @@ ${documentsContext}
 CAREGIVER QUESTION:
 "${context.question}"
 
-CLINICAL INSTRUCTIONS & CHAT FORMAT:
-1. Carefully analyze ALL the patient profile details, uploaded documents with Gemini OCR extracted text (prescriptions, dosages, lab tests, doctor notes), allergies, and medical history provided above.
-2. Provide a clear, highly accurate, and empathetic answer tailored to the caregiver's question.
-3. FORMATTING RULES FOR CHATBOT UI:
-   - Speak naturally and conversationally, like a top-tier clinical AI assistant.
-   - Do NOT use markdown header tags like '###' or '##'. Use simple capitalized labels if needed (e.g. "CURRENT MEDICATIONS:").
-   - Use clean bullet points (•) for lists of medications, vitals, or instructions.
-   - For medications, format each item in a clear, easy-to-read line:
-     • **Medicine Name & Strength** — Dosage, timing (e.g. morning/night after food), and purpose.
-   - For allergies or warnings, highlight them clearly (e.g. "⚠️ Note: Patient has a documented Penicillin allergy.").
-   - Do not leave sentences incomplete. Provide the complete clinical answer.
+CLINICAL RELEVANCE & CONVERSATIONAL INSTRUCTIONS:
+1. INTENT & RELEVANCE:
+   - If the user sends a greeting or conversational icebreaker (e.g. "Hi", "Hello", "Hey", "Good morning", "Who are you?"):
+     Respond warmly, politely, and concisely (1-2 sentences). Welcome them and let them know you have indexed ${patientName}'s health records, prescriptions, and test results, and invite them to ask their question. Do NOT dump medical data or medication lists unless asked!
+   - If the user asks a specific clinical question (e.g. "What medications is she taking?", "Show blood pressure", "Any allergies?"):
+     Carefully check all the uploaded prescriptions, OCR text, and profile details above, and provide a direct, concise, and 100% relevant answer.
+2. MEDICATIONS & CLINICAL DETAILS:
+   - When asked about medications, format each cleanly:
+     • **Medicine Name & Strength** — Dosage & frequency, timing (e.g. morning/night after food), and indication.
+   - When asked about vitals or lab tests, cite the exact numbers, dates, and doctor observations.
+   - If information is not in the records, politely explain what is recorded and recommend consulting the doctor.
+3. FORMAT:
+   - Keep answers natural, crisp, and readable like a premier AI assistant.
+   - Do NOT use markdown header tags like '###' or '##'.
+   - Use clean bullet points (•) for lists.
 `;
 
   const models = [
+    'gemini-3.1-flash-lite',
+    'gemini-3.5-flash-lite',
+    'gemini-flash-lite-latest',
     'gemini-3.6-flash',
     'gemini-3.7-flash',
     'gemini-3.5-flash',
-    'gemini-flash-latest',
-    'gemini-3-flash-preview',
   ];
 
   for (const model of models) {
     try {
-      console.log(`[Gemini Chat] Reasoning over health memory with ${model}...`);
+      console.log(`[Gemini Chat] Fast-querying ${model}...`);
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`;
       
       const payload = {
@@ -376,7 +381,7 @@ CLINICAL INSTRUCTIONS & CHAT FORMAT:
         ],
         generationConfig: {
           temperature: 0.2,
-          maxOutputTokens: 2048,
+          maxOutputTokens: 1024,
         },
       };
 

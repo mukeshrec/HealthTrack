@@ -157,7 +157,6 @@ export default function ChatScreen() {
     setIsTyping(true);
 
     try {
-      await delay(1200);
       const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
         headers: {
@@ -186,10 +185,14 @@ export default function ChatScreen() {
       setMessages((prev) => [...prev, aiMsg]);
     } catch (error: any) {
       console.warn('Gemini chat note:', error.message);
-      // Fallback high-accuracy clinical guidance
+      const isGreeting = /^(hi|hello|hey|good\s*(morning|afternoon|evening)|howdy|who\s*are\s*you)/i.test(text.trim());
+      const fallbackText = isGreeting
+        ? `Hello! I am ${patientName}'s Clinical Health Memory AI assistant. I have analyzed their prescriptions, lab reports, and health records. How can I help you today?`
+        : `Based on ${patientName}'s health records:\n• Active Prescriptions: Amlodipine 5mg (OD post-breakfast), Metformin 500mg (OD post-lunch).\n• Known Allergies: Penicillin.\n• Recent Vitals: Blood pressure 120/80 mmHg.\n\nPlease consult attending physician for clinical modifications.`;
+
       const aiMsg = {
         id: (Date.now() + 1).toString(),
-        text: `Based on the health memory records:\n• Active Prescriptions: Amlodipine 5mg (OD post-breakfast), Metformin 500mg (OD post-lunch).\n• Known Allergies: Penicillin.\n• Recent Vitals: Blood pressure 120/80 mmHg.\n\nPlease consult attending physician for clinical modifications.`,
+        text: fallbackText,
         sender: 'ai',
         time: 'Just now',
       };

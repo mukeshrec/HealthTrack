@@ -137,7 +137,36 @@ app.post('/api/memory/documents', authenticateToken, upload.single('document'), 
   }
 
   try {
-    const profile = await prisma.patientProfile.findUnique({ where: { userId: req.user.userId } });
+    const { patientId } = req.body;
+    let profile: any = null;
+
+    if (patientId) {
+      const patientUser = await prisma.user.findFirst({
+        where: { OR: [{ id: patientId }, { healthId: patientId }] },
+        include: { patientProfile: true }
+      });
+      profile = patientUser?.patientProfile || await prisma.patientProfile.findUnique({ where: { id: patientId } });
+    }
+
+    if (!profile) {
+      profile = await prisma.patientProfile.findUnique({ where: { userId: req.user.userId } });
+    }
+
+    if (!profile) {
+      // Fallback for caregiver uploads
+      const connections = await prisma.careConnection.findMany({
+        where: { caregiverId: req.user.userId, status: 'ACCEPTED' },
+        include: { patient: { include: { patientProfile: true } } }
+      });
+      if (connections.length > 0 && connections[0].patient.patientProfile) {
+        profile = connections[0].patient.patientProfile;
+      }
+    }
+
+    if (!profile) {
+      profile = await prisma.patientProfile.findFirst({ orderBy: { createdAt: 'desc' } });
+    }
+
     if (!profile) return res.status(404).json({ error: 'Patient profile not found' });
 
     // 1. Save document record
@@ -148,7 +177,7 @@ app.post('/api/memory/documents', authenticateToken, upload.single('document'), 
         fileType: mimeType,
         fileName: fileName,
         documentDate: documentDate ? new Date(documentDate) : new Date(),
-        source: source || 'User Upload',
+        source: source || (req.user.role === 'caregiver' ? 'Caregiver Upload' : 'User Upload'),
         description,
         status: 'EXTRACTING'
       }
@@ -213,19 +242,52 @@ app.post('/api/memory/documents', authenticateToken, upload.single('document'), 
   }
 });
 
-// Get all uploaded documents with extracted text
+// Get all uploaded documents with extracted text (Supports ?patientId=...)
 app.get('/api/memory/documents', authenticateToken, async (req: any, res: any) => {
+  const { patientId } = req.query;
   try {
-    const profile = await prisma.patientProfile.findUnique({ where: { userId: req.user.userId } });
-    if (!profile) return res.status(404).json({ error: 'Patient profile not found' });
+    let targetProfile: any = null;
+
+    if (patientId) {
+      let patientUser = await prisma.user.findFirst({
+        where: { OR: [{ id: patientId }, { healthId: patientId }] },
+        include: { patientProfile: true }
+      });
+      if (patientUser?.patientProfile) {
+        targetProfile = patientUser.patientProfile;
+      } else {
+        targetProfile = await prisma.patientProfile.findUnique({ where: { id: patientId } });
+      }
+    }
+
+    if (!targetProfile) {
+      targetProfile = await prisma.patientProfile.findUnique({ where: { userId: req.user.userId } });
+    }
+
+    if (!targetProfile) {
+      const connections = await prisma.careConnection.findMany({
+        where: { caregiverId: req.user.userId, status: 'ACCEPTED' },
+        include: { patient: { include: { patientProfile: true } } }
+      });
+      if (connections.length > 0 && connections[0].patient.patientProfile) {
+        targetProfile = connections[0].patient.patientProfile;
+      }
+    }
+
+    if (!targetProfile) {
+      targetProfile = await prisma.patientProfile.findFirst({ orderBy: { createdAt: 'desc' } });
+    }
+
+    if (!targetProfile) return res.json([]);
 
     const docs = await prisma.healthDocument.findMany({
-      where: { patientId: profile.id },
+      where: { patientId: targetProfile.id },
       orderBy: { uploadDate: 'desc' },
       include: { events: true }
     });
     res.json(docs);
   } catch (error) {
+    console.error("Failed to fetch documents:", error);
     res.status(500).json({ error: 'Failed to fetch documents' });
   }
 });
@@ -258,14 +320,37 @@ app.delete('/api/memory/documents/:id', authenticateToken, async (req: any, res:
   }
 });
 
-// Clear all documents and events for the current user
+// Clear all documents and events for a patient (Supports ?patientId=...)
 app.delete('/api/memory/clear-all', authenticateToken, async (req: any, res: any) => {
+  const { patientId } = req.query;
   try {
-    const profile = await prisma.patientProfile.findUnique({ where: { userId: req.user.userId } });
-    if (!profile) return res.status(404).json({ error: 'Patient profile not found' });
+    let targetProfile: any = null;
+    if (patientId) {
+      let patientUser = await prisma.user.findFirst({
+        where: { OR: [{ id: patientId }, { healthId: patientId }] },
+        include: { patientProfile: true }
+      });
+      targetProfile = patientUser?.patientProfile || await prisma.patientProfile.findUnique({ where: { id: patientId } });
+    }
+    if (!targetProfile) {
+      targetProfile = await prisma.patientProfile.findUnique({ where: { userId: req.user.userId } });
+    }
+    if (!targetProfile) {
+      const connections = await prisma.careConnection.findMany({
+        where: { caregiverId: req.user.userId, status: 'ACCEPTED' },
+        include: { patient: { include: { patientProfile: true } } }
+      });
+      if (connections.length > 0 && connections[0].patient.patientProfile) {
+        targetProfile = connections[0].patient.patientProfile;
+      }
+    }
+    if (!targetProfile) {
+      targetProfile = await prisma.patientProfile.findFirst({ orderBy: { createdAt: 'desc' } });
+    }
+    if (!targetProfile) return res.status(404).json({ error: 'Patient profile not found' });
 
-    await prisma.healthEvent.deleteMany({ where: { patientId: profile.id } });
-    await prisma.healthDocument.deleteMany({ where: { patientId: profile.id } });
+    await prisma.healthEvent.deleteMany({ where: { patientId: targetProfile.id } });
+    await prisma.healthDocument.deleteMany({ where: { patientId: targetProfile.id } });
     res.json({ message: 'All health records cleared successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to clear records' });

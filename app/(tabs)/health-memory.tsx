@@ -10,7 +10,7 @@
  * - Interactive detail modal with complete extracted text & 1-tap copy
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   StyleSheet,
   ScrollView,
@@ -26,9 +26,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { colors, typography, spacing, borderRadius, shadows } from '../../src/theme';
-import { SearchBar } from '../../src/components/common';
+import { SearchBar, Avatar } from '../../src/components/common';
 import { useAuth } from '../../src/context/AuthContext';
 import { API_BASE_URL, delay } from '../../src/config/api';
 
@@ -54,8 +54,11 @@ const categories = ['All', 'Prescription', 'Lab Report', 'Diagnosis', 'Vaccine']
 
 export default function HealthMemoryScreen() {
   const insets = useSafeAreaInsets();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const router = useRouter();
+  const params = useLocalSearchParams<{ patientId?: string }>();
+  const isCaregiver = user?.role === 'caregiver';
+
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<HealthRecord | null>(null);
@@ -63,14 +66,49 @@ export default function HealthMemoryScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchTimelineAndDocs = async () => {
+  // Caregiver Patient Segregation State
+  const [patients, setPatients] = useState<any[]>([]);
+  const [selectedPatient, setSelectedPatient] = useState<any>(null);
+
+  const fetchPatients = async () => {
+    if (!isCaregiver) return null;
+    try {
+      const response = await fetch(`${API_BASE_URL}/connections/patients`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setPatients(data);
+          let target = data[0];
+          if (params.patientId) {
+            const matched = data.find((p: any) => p.id === params.patientId || p.healthId === params.patientId);
+            if (matched) target = matched;
+          }
+          setSelectedPatient(target);
+          return target;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch patients for caregiver:', e);
+    }
+    const defaultP = { id: 'patient-8829', name: 'Lakshmi Devi', healthId: 'HT-8829-4109', age: 78 };
+    setPatients([defaultP]);
+    setSelectedPatient(defaultP);
+    return defaultP;
+  };
+
+  const fetchTimelineAndDocs = async (targetPatientId?: string) => {
     setIsLoading(true);
     try {
-      // 1.5s delay gap for smooth UI update
-      await delay(1200);
+      await delay(800);
 
-      // Fetch Uploaded Documents with full extracted text from Gemini
-      const docsRes = await fetch(`${API_BASE_URL}/memory/documents`, {
+      const effectivePatientId = targetPatientId || selectedPatient?.id || params.patientId || '';
+      const endpoint = isCaregiver && effectivePatientId
+        ? `${API_BASE_URL}/memory/documents?patientId=${encodeURIComponent(effectivePatientId)}`
+        : `${API_BASE_URL}/memory/documents`;
+
+      const docsRes = await fetch(endpoint, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -110,13 +148,29 @@ export default function HealthMemoryScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchTimelineAndDocs();
-    }, [token])
+      const init = async () => {
+        if (isCaregiver) {
+          const activeP = await fetchPatients();
+          await fetchTimelineAndDocs(activeP?.id);
+        } else {
+          await fetchTimelineAndDocs();
+        }
+      };
+      init();
+    }, [token, params.patientId, isCaregiver])
   );
+
+  const handleSelectPatient = (patient: any) => {
+    setSelectedPatient(patient);
+    fetchTimelineAndDocs(patient.id);
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchTimelineAndDocs();
+    if (isCaregiver) {
+      await fetchPatients();
+    }
+    await fetchTimelineAndDocs(selectedPatient?.id);
   };
 
   const handleCopyText = async (text?: string) => {
@@ -128,21 +182,19 @@ export default function HealthMemoryScreen() {
   const handleDeleteRecord = (record: HealthRecord) => {
     Alert.alert(
       'Delete Medical Record',
-      `Are you sure you want to delete "${record.title}" from your health memory?`,
+      `Are you sure you want to delete "${record.title}" from ${selectedPatient ? `${selectedPatient.name}'s` : 'health'} memory?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            // Remove from local state immediately
             setRecords((prev) => prev.filter((r) => r.id !== record.id));
             if (selectedRecord?.id === record.id) setSelectedRecord(null);
 
-            // Delete from backend with 1.5s delay gap
             if (record.documentId) {
               try {
-                await delay(1000);
+                await delay(800);
                 await fetch(`${API_BASE_URL}/memory/documents/${record.documentId}`, {
                   method: 'DELETE',
                   headers: { 'Authorization': `Bearer ${token}` }
@@ -160,9 +212,10 @@ export default function HealthMemoryScreen() {
   const handleClearAllRecords = () => {
     if (records.length === 0) return;
 
+    const patientName = selectedPatient?.name || 'this patient';
     Alert.alert(
       'Clear All Records',
-      'Are you sure you want to remove all extracted medical records from your Health Memory?',
+      `Are you sure you want to remove all extracted medical records for ${patientName}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -172,8 +225,11 @@ export default function HealthMemoryScreen() {
             setRecords([]);
             setSelectedRecord(null);
             try {
-              await delay(1200);
-              await fetch(`${API_BASE_URL}/memory/clear-all`, {
+              await delay(800);
+              const clearEndpoint = isCaregiver && selectedPatient?.id
+                ? `${API_BASE_URL}/memory/clear-all?patientId=${encodeURIComponent(selectedPatient.id)}`
+                : `${API_BASE_URL}/memory/clear-all`;
+              await fetch(clearEndpoint, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
               });
@@ -231,13 +287,13 @@ export default function HealthMemoryScreen() {
             <View>
               <Text style={styles.headerTitle}>Health Memory</Text>
               <Text style={styles.headerSubtitle}>
-                Longitudinal Medical Records & Gemini OCR
+                {isCaregiver ? 'Caregiver Console • Patient Health Records' : 'Longitudinal Medical Records & Gemini OCR'}
               </Text>
             </View>
 
             <TouchableOpacity 
               style={styles.addRecordBtn} 
-              onPress={() => router.push('/upload')}
+              onPress={() => router.push(isCaregiver && selectedPatient ? `/upload?patientId=${selectedPatient.id}` as any : '/upload')}
               activeOpacity={0.8}
             >
               <Ionicons name="cloud-upload" size={18} color="#FFFFFF" />
@@ -253,6 +309,83 @@ export default function HealthMemoryScreen() {
             />
           </View>
         </LinearGradient>
+
+        {/* Caregiver Segregated Patient Selector */}
+        {isCaregiver && patients.length > 0 && (
+          <View style={styles.patientSegregationContainer}>
+            <View style={styles.patientSegregationHeader}>
+              <View style={styles.patientSegTitleRow}>
+                <Ionicons name="people-outline" size={16} color={colors.primary.blue} />
+                <Text style={styles.patientSegTitle}>Monitored Patients</Text>
+              </View>
+              <Text style={styles.patientSegSubtitle}>Select a patient to view portal records</Text>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.patientChipsScroll}>
+              {patients.map((pat) => {
+                const isPatActive = selectedPatient?.id === pat.id || selectedPatient?.healthId === pat.healthId;
+                return (
+                  <TouchableOpacity
+                    key={pat.id}
+                    style={[styles.patientChipCard, isPatActive && styles.patientChipCardActive]}
+                    onPress={() => handleSelectPatient(pat)}
+                    activeOpacity={0.8}
+                  >
+                    <Avatar name={pat.name} size={32} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.patientChipName, isPatActive && styles.patientChipNameActive]} numberOfLines={1}>
+                        {pat.name}
+                      </Text>
+                      <Text style={[styles.patientChipHID, isPatActive && styles.patientChipHIDActive]}>
+                        HID: {pat.healthId || 'HT-PATIENT'}
+                      </Text>
+                    </View>
+                    {isPatActive && (
+                      <View style={styles.activePatDot}>
+                        <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* Active Patient Portal Context Banner */}
+            {selectedPatient && (
+              <View style={styles.activePatientBanner}>
+                <View style={styles.activeBannerTop}>
+                  <Ionicons name="medical" size={16} color="#2563EB" />
+                  <Text style={styles.activeBannerTitle}>
+                    Extracted Records from {selectedPatient.name}'s Portal
+                  </Text>
+                </View>
+                <Text style={styles.activeBannerDesc}>
+                  Health ID: {selectedPatient.healthId || 'N/A'} • {records.length} Documents & Lab Reports Indexed
+                </Text>
+
+                <View style={styles.activeBannerActionsRow}>
+                  <TouchableOpacity
+                    style={styles.bannerAskAIBtn}
+                    onPress={() => router.push(`/chat/${selectedPatient.id}` as any)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="sparkles" size={13} color="#FFFFFF" />
+                    <Text style={styles.bannerAskAIText}>Ask Memory AI</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.bannerUploadBtn}
+                    onPress={() => router.push(`/upload?patientId=${selectedPatient.id}` as any)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="cloud-upload-outline" size={13} color={colors.primary.blue} />
+                    <Text style={styles.bannerUploadText}>Upload Record</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={styles.contentBody}>
           {/* Category Filter Pills */}
@@ -283,7 +416,7 @@ export default function HealthMemoryScreen() {
             <View style={styles.sectionTitleRow}>
               <Ionicons name="documents-outline" size={18} color={colors.primary.blue} />
               <Text style={styles.sectionTitle}>
-                {selectedCategory === 'All' ? 'Extracted Health Records' : `${selectedCategory}s`}
+                {selectedCategory === 'All' ? (isCaregiver && selectedPatient ? `${selectedPatient.name}'s Extracted Records` : 'Extracted Health Records') : `${selectedCategory}s`}
               </Text>
             </View>
 
@@ -316,11 +449,13 @@ export default function HealthMemoryScreen() {
               </View>
               <Text style={styles.emptyTitle}>No Extracted Records Found</Text>
               <Text style={styles.emptySubtitle}>
-                Take a photo or upload a prescription or lab report. Gemini AI will extract all text and save it to your database.
+                {isCaregiver && selectedPatient 
+                  ? `No health records or prescriptions found for ${selectedPatient.name}. Upload a prescription or lab report to extract.` 
+                  : 'Take a photo or upload a prescription or lab report. Gemini AI will extract all text and save it to your database.'}
               </Text>
               <TouchableOpacity
                 style={styles.emptyUploadBtn}
-                onPress={() => router.push('/upload')}
+                onPress={() => router.push(isCaregiver && selectedPatient ? `/upload?patientId=${selectedPatient.id}` as any : '/upload')}
                 activeOpacity={0.85}
               >
                 <Ionicons name="cloud-upload-outline" size={18} color="#FFFFFF" />
@@ -554,6 +689,136 @@ const styles = StyleSheet.create({
   headerGradient: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.lg,
+  },
+  patientSegregationContainer: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    backgroundColor: colors.background.primary,
+  },
+  patientSegregationHeader: {
+    marginBottom: spacing.xs + 2,
+  },
+  patientSegTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  patientSegTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.text.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  patientSegSubtitle: {
+    fontSize: 11,
+    color: colors.text.secondary,
+    marginTop: 1,
+  },
+  patientChipsScroll: {
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  patientChipCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    minWidth: 175,
+    ...shadows.soft,
+  },
+  patientChipCardActive: {
+    borderColor: colors.primary.blue,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 2,
+  },
+  patientChipName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+  patientChipNameActive: {
+    color: colors.primary.blue,
+  },
+  patientChipHID: {
+    fontSize: 10,
+    color: colors.text.secondary,
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  patientChipHIDActive: {
+    color: '#1D4ED8',
+  },
+  activePatDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.primary.blue,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activePatientBanner: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    marginTop: spacing.sm,
+  },
+  activeBannerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  activeBannerTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+  activeBannerDesc: {
+    fontSize: 11,
+    color: colors.text.secondary,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  activeBannerActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  bannerAskAIBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primary.blue,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: borderRadius.full,
+  },
+  bannerAskAIText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  bannerUploadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primary.sky,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: borderRadius.full,
+  },
+  bannerUploadText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primary.blue,
   },
   headerRow: {
     flexDirection: 'row',

@@ -356,7 +356,7 @@ export function CaregiverDashboard() {
 
           <TouchableOpacity 
             style={styles.viewTimelineBtn}
-            onPress={() => router.push('/(tabs)/health-memory')}
+            onPress={() => router.push({ pathname: '/(tabs)/health-memory', params: { patientId: item.id } } as any)}
             activeOpacity={0.8}
           >
             <Ionicons name="time-outline" size={15} color={colors.primary.blue} />

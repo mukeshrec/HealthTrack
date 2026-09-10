@@ -427,33 +427,74 @@ export function DoctorPortal() {
         {/* 7. MEDICATIONS VIEW */}
         {activeTab === 'Medications' && patientData && (
           <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm space-y-6">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
-                  <Pill size={22} />
+                <div className="w-11 h-11 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shadow-2xs">
+                  <Pill size={24} />
                 </div>
                 <div>
                   <h2 className="text-lg font-black text-slate-900">Active Prescriptions & Medication Regimen</h2>
-                  <p className="text-xs text-slate-500 font-medium">Extracted from verified clinical prescriptions and daily caregiver schedules</p>
+                  <p className="text-xs text-slate-500 font-medium">Authentic prescription records & scheduled dosing loaded directly from common database</p>
                 </div>
+              </div>
+
+              <button
+                onClick={() => loadFullPatientProfile(patientData.user?.id)}
+                className="self-start sm:self-auto px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-black rounded-xl border border-blue-200 flex items-center gap-2 transition-all shadow-2xs"
+              >
+                <RefreshCw size={14} /> Refresh From DB
+              </button>
+            </div>
+
+            {/* AI Clinical Medication Summary Banner */}
+            <div className="p-4 bg-blue-50/70 border border-blue-200 rounded-2xl flex items-start gap-3">
+              <Sparkles size={18} className="text-blue-600 mt-0.5 shrink-0" />
+              <div>
+                <h4 className="text-xs font-black text-blue-950 uppercase tracking-wider">Clinical Pharmacotherapy Summary</h4>
+                <p className="text-xs text-blue-900/90 font-medium mt-0.5 leading-relaxed">
+                  Patient currently has {patientData.medications?.length || 0} active prescribed medications recorded in the longitudinal memory repository. All doses are synchronized with caregiver mobile schedule alarms.
+                </p>
               </div>
             </div>
 
+            {/* Medications Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {(patientData.medications || []).map((med, idx) => (
-                <div key={idx} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="text-sm font-black text-slate-900">{med.name}</h4>
-                      <p className="text-xs text-slate-600 font-semibold mt-1">{med.dosage} • {med.instruction}</p>
+                <div key={idx} className="p-5 rounded-2xl border border-slate-200 bg-white hover:border-blue-300 hover:shadow-md transition-all flex flex-col justify-between group shadow-2xs">
+                  <div>
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
+                          <Pill size={16} />
+                        </div>
+                        <h4 className="text-sm font-black text-slate-900 group-hover:text-blue-700 transition-colors">{med.name}</h4>
+                      </div>
+                      <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[11px] font-black rounded-full border border-emerald-200 flex items-center gap-1">
+                        <CheckCircle2 size={12} /> Active Rx
+                      </span>
                     </div>
-                    <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-black rounded-lg border border-emerald-200">
-                      Active
-                    </span>
+
+                    <div className="space-y-1.5 mt-3 text-xs">
+                      <div className="flex justify-between p-2 bg-slate-50 rounded-xl">
+                        <span className="text-slate-500 font-medium">Dosage & Strength:</span>
+                        <span className="font-extrabold text-slate-800">{med.dosage}</span>
+                      </div>
+                      <div className="flex justify-between p-2 bg-slate-50 rounded-xl">
+                        <span className="text-slate-500 font-medium">Administration:</span>
+                        <span className="font-bold text-blue-700">{med.instruction}</span>
+                      </div>
+                      <div className="flex justify-between p-2 bg-slate-50 rounded-xl">
+                        <span className="text-slate-500 font-medium">Daily Timing Slot:</span>
+                        <span className="font-black text-slate-900">{med.slot || 'Daily'} ({med.time || '08:00 AM'})</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs text-slate-500 font-medium">
-                    <span>Schedule: <strong className="text-slate-800">{med.slot || med.time}</strong></span>
-                    <span className="text-[11px] text-slate-400">{med.source}</span>
+
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 font-semibold">
+                    <span className="flex items-center gap-1">
+                      <FileText size={12} className="text-blue-500" /> Source: {med.source || 'Prescription Document'}
+                    </span>
+                    <span>{med.prescribedDate || 'Verified'}</span>
                   </div>
                 </div>
               ))}

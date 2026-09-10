@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "HealthTrack",
-    "slug": "HealthTrack",
-    "version": "1.0.0",
+    "name": "Health Memory",
+    "slug": "health-memory",
+    "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "healthtrack",
-    "userInterfaceStyle": "automatic",
+    "scheme": "healthmemory",
+    "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
     },

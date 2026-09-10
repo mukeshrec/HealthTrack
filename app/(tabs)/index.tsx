@@ -1,31 +1,96 @@
-import { StyleSheet } from 'react-native';
+/**
+ * Home Screen — Health Memory
+ *
+ * Main dashboard assembling all home components:
+ * Header, GreetingCard, QuickActions, TodaysCare,
+ * RecentUpdates, and UpcomingAppointments.
+ */
 
-import EditScreenInfo from '@/components/EditScreenInfo';
-import { Text, View } from '@/components/Themed';
+import React from 'react';
+import {
+  StyleSheet,
+  ScrollView,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Header } from '../../src/components/home/Header';
+import { GreetingCard } from '../../src/components/home/GreetingCard';
+import { QuickActions } from '../../src/components/home/QuickActions';
+import { TodaysCare } from '../../src/components/home/TodaysCare';
+import { RecentUpdates } from '../../src/components/home/RecentUpdates';
+import { UpcomingAppointments } from '../../src/components/home/UpcomingAppointments';
+import { colors, spacing } from '../../src/theme';
+import {
+  currentPatient,
+  quickActions,
+  medications,
+  dailyHealthCheck,
+  recentUpdates,
+  upcomingAppointments,
+} from '../../src/constants/mockData';
 
-export default function TabOneScreen() {
+export default function HomeScreen() {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Tab One</Text>
-      <View style={styles.separator} lightColor="#eee" darkColor="rgba(255,255,255,0.1)" />
-      <EditScreenInfo path="app/(tabs)/index.tsx" />
-    </View>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header: Logo + Bell + Avatar */}
+        <Header patient={currentPatient} />
+
+        {/* Greeting Card */}
+        <GreetingCard patientName={currentPatient.firstName} />
+
+        {/* Quick Action Cards */}
+        <QuickActions actions={quickActions} />
+
+        {/* Today's Care: Medications + Daily Check */}
+        <TodaysCare
+          medications={medications}
+          dailyCheck={dailyHealthCheck}
+        />
+
+        {/* Bottom Row: Recent Updates | Upcoming Appointments */}
+        <View style={styles.bottomRow}>
+          <View style={styles.bottomCol}>
+            <RecentUpdates updates={recentUpdates} />
+          </View>
+          <View style={styles.bottomCol}>
+            <UpcomingAppointments appointments={upcomingAppointments} />
+          </View>
+        </View>
+
+        {/* Bottom spacing */}
+        <View style={styles.bottomSpacer} />
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: colors.background.primary,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  scrollView: {
+    flex: 1,
   },
-  separator: {
-    marginVertical: 30,
-    height: 1,
-    width: '80%',
+  scrollContent: {
+    paddingBottom: 100,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.xl,
+    gap: spacing.md,
+    alignItems: 'flex-start',
+  },
+  bottomCol: {
+    flex: 1,
+  },
+  bottomSpacer: {
+    height: spacing.xl,
   },
 });

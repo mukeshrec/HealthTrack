@@ -166,7 +166,8 @@ export function CaregiverDashboard() {
   };
 
   const openMedicineScheduler = async (patient: any) => {
-    setSelectedPatientForSchedule(patient);
+    const latestPatient = patients.find((p) => p.id === patient.id) || patient;
+    setSelectedPatientForSchedule(latestPatient);
     setScheduleModalVisible(true);
     setIsLoadingMeds(true);
     setSelectedMedForTiming(null);

@@ -51,14 +51,40 @@ export default function HomeScreen() {
   // Live Looping Voice Alarm State
   const [alarmData, setAlarmData] = useState<AlarmPayload | null>(null);
   const [isAlarmModalVisible, setIsAlarmModalVisible] = useState(false);
+  const [patientSchedules, setPatientSchedules] = useState<any[]>([]);
   const lastAlarmIdRef = useRef<string | null>(null);
+  const triggeredDosesRef = useRef<Set<string>>(new Set());
 
-  // Poll for active guardian voice alarms if logged in as patient
+  // Fetch dynamic scheduled medications for current patient
+  const fetchPatientSchedules = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/memory/medications?patientId=${user?.id || 'default-patient'}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.schedules) && data.schedules.length > 0) {
+          setPatientSchedules(data.schedules);
+        }
+      }
+    } catch (e) {
+      // quiet fallback
+    }
+  };
+
+  useEffect(() => {
+    if (user?.role !== 'caregiver') {
+      fetchPatientSchedules();
+    }
+  }, [user, token]);
+
+  // Poll for active guardian voice alarms AND check scheduled dose times
   useEffect(() => {
     if (user?.role === 'caregiver') return;
 
-    const checkActiveAlarm = async () => {
+    const checkActiveAlarmAndSchedule = async () => {
       try {
+        // 1. Check backend for guardian-triggered alarms
         const res = await fetch(`${API_BASE_URL}/notifications/active-alarm?patientId=${user?.id || 'default-patient'}`, {
           headers: token ? { 'Authorization': `Bearer ${token}` } : {}
         });
@@ -78,21 +104,61 @@ export default function HomeScreen() {
                 patientName: user?.name ? user.name.split(' ')[0] : 'Lakshmi',
               });
               setIsAlarmModalVisible(true);
+              return;
             }
           }
         }
+
+        // 2. Check local schedule for automatic due dose alarms
+        const now = new Date();
+        const currentHours = now.getHours();
+        const currentMins = now.getMinutes();
+        const currentMeridian = currentHours >= 12 ? 'PM' : 'AM';
+        const formatted12Hr = currentHours % 12 === 0 ? 12 : currentHours % 12;
+        const timePattern = `${String(formatted12Hr).padStart(2, '0')}:${String(currentMins).padStart(2, '0')} ${currentMeridian}`;
+
+        const activeList = patientSchedules.length > 0 ? patientSchedules : medications.map(m => ({
+          id: m.id,
+          name: m.name,
+          dosage: m.dosage,
+          instruction: m.schedule,
+          time: '08:00 AM',
+          slot: 'Morning',
+          taken: false
+        }));
+
+        activeList.forEach((sched: any) => {
+          if (!sched.taken && sched.time) {
+            const schedClean = sched.time.trim().toUpperCase();
+            // Check if current minute matches scheduled time
+            if (schedClean === timePattern && !triggeredDosesRef.current.has(sched.id + '-' + timePattern)) {
+              triggeredDosesRef.current.add(sched.id + '-' + timePattern);
+              setAlarmData({
+                id: `schedule-alarm-${sched.id}-${Date.now()}`,
+                medicineName: sched.name,
+                dosage: sched.dosage,
+                instruction: sched.instruction || 'After Food',
+                slot: sched.slot || 'Morning',
+                time: sched.time,
+                senderName: 'Scheduled Clinical Regimen',
+                patientName: user?.name ? user.name.split(' ')[0] : 'Lakshmi',
+              });
+              setIsAlarmModalVisible(true);
+            }
+          }
+        });
       } catch (err) {
         // quiet fallback
       }
     };
 
-    checkActiveAlarm();
-    const interval = setInterval(checkActiveAlarm, 4000);
+    checkActiveAlarmAndSchedule();
+    const interval = setInterval(checkActiveAlarmAndSchedule, 4000);
     return () => clearInterval(interval);
-  }, [user, token]);
+  }, [user, token, patientSchedules]);
 
   const handleTestVoiceAlarm = () => {
-    const sampleMed = medications[0] || {
+    const sampleMed = (patientSchedules.length > 0 ? patientSchedules[0] : null) || medications[0] || {
       name: 'Metformin Hydrochloride',
       dosage: '500mg',
       schedule: 'After Breakfast',
@@ -103,9 +169,9 @@ export default function HomeScreen() {
       id: `test-alarm-${Date.now()}`,
       medicineName: sampleMed.name,
       dosage: sampleMed.dosage,
-      instruction: 'After Breakfast',
-      slot: 'Morning',
-      time: '08:00 AM',
+      instruction: sampleMed.instruction || sampleMed.schedule || 'After Breakfast',
+      slot: sampleMed.slot || 'Morning',
+      time: sampleMed.time || '08:00 AM',
       senderName: 'Guardian Anand Devi',
       patientName: user?.name ? user.name.split(' ')[0] : 'Lakshmi',
     });

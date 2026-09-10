@@ -77,21 +77,17 @@ export function DoctorPortal() {
       <div className="max-w-[1600px] mx-auto space-y-7 pb-12">
         
         {/* 1. Unified Panoramic Clinical Hero Banner (CivicConnect / Hospital Enterprise Style) */}
-        <div className="bg-gradient-to-br from-blue-50/90 via-sky-50/60 to-indigo-50/80 rounded-3xl border border-blue-100/80 p-7 shadow-xs relative overflow-hidden">
-          {/* Subtle Aesthetic Blur Accents */}
-          <div className="absolute top-0 right-0 -mr-12 -mt-12 w-64 h-64 bg-blue-200/40 rounded-full blur-3xl pointer-events-none"></div>
-          <div className="absolute bottom-0 left-1/4 w-48 h-48 bg-teal-200/30 rounded-full blur-2xl pointer-events-none"></div>
-
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-7 relative overflow-hidden">
           <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
             <div className="flex-1 max-w-3xl">
               {/* Status Tags */}
               <div className="flex flex-wrap items-center gap-2.5 mb-3">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/90 backdrop-blur-md rounded-full border border-blue-200/70 text-blue-800 text-[11px] font-extrabold shadow-2xs">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 rounded-full border border-blue-200/80 text-blue-700 text-[11px] font-extrabold shadow-2xs">
                   <Sparkles size={13} className="text-blue-600" />
                   <span>Geriatric Clinical Copilot Active</span>
                 </span>
 
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50/90 backdrop-blur-md rounded-full border border-emerald-200/70 text-emerald-800 text-[11px] font-extrabold">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 rounded-full border border-emerald-200/80 text-emerald-700 text-[11px] font-extrabold">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                   <span>HIPAA Verified & Encrypted</span>
                 </span>
@@ -103,7 +99,7 @@ export function DoctorPortal() {
               </h2>
               <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1 leading-relaxed">
                 Currently reviewing longitudinal geriatric care for{' '}
-                <span className="font-extrabold text-blue-900 bg-blue-100/70 px-2 py-0.5 rounded-md border border-blue-200/60">
+                <span className="font-extrabold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-lg border border-blue-200/60">
                   {patientData?.user?.name || 'Lakshmi Narayanan'} (78 yrs · {patientData?.gender || 'Female'})
                 </span>
                 . 3 high-priority multi-agent risk flags detected across prescriptions & logs.
@@ -111,7 +107,7 @@ export function DoctorPortal() {
 
               {/* Integrated Patient Aadhar Lookup Bar */}
               <form onSubmit={handleSearch} className="mt-5 flex flex-wrap sm:flex-nowrap items-center gap-2.5 max-w-2xl">
-                <div className="flex-1 flex items-center gap-2.5 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl px-4 py-2.5 shadow-xs focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                <div className="flex-1 flex items-center gap-2.5 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 shadow-xs focus-within:bg-white focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
                   <Search size={16} className="text-blue-600 shrink-0" />
                   <div className="flex-1 flex flex-col justify-center">
                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Patient Aadhar / Health ID</span>
@@ -126,7 +122,7 @@ export function DoctorPortal() {
                 </div>
 
                 <button 
-                  type="submit"
+                  type="submit" 
                   disabled={loading}
                   className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-extrabold py-3.5 px-6 rounded-2xl transition-all shadow-sm shadow-blue-600/30 text-xs flex items-center gap-2 shrink-0 disabled:opacity-50"
                 >
@@ -140,13 +136,13 @@ export function DoctorPortal() {
                 <span className="text-[10px] uppercase font-bold text-slate-400">Quick Switch:</span>
                 <button 
                   onClick={() => { setHidInput('1234 5678 9012'); handleSearch(); }}
-                  className="px-2.5 py-0.5 rounded-lg bg-white/70 hover:bg-white text-slate-700 font-bold border border-slate-200/60 transition-colors"
+                  className="px-2.5 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold border border-slate-200 transition-colors"
                 >
                   Lakshmi N (HT-89321)
                 </button>
                 <button 
                   onClick={() => { setHidInput('9876 5432 1098'); handleSearch(); }}
-                  className="px-2.5 py-0.5 rounded-lg bg-white/70 hover:bg-white text-slate-700 font-bold border border-slate-200/60 transition-colors"
+                  className="px-2.5 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold border border-slate-200 transition-colors"
                 >
                   Mukesh V (HT-4109)
                 </button>
@@ -154,10 +150,10 @@ export function DoctorPortal() {
             </div>
 
             {/* Right Stat Summary Widget (CivicConnect style) */}
-            <div className="w-full lg:w-72 bg-white/90 backdrop-blur-md rounded-2xl border border-blue-100 p-4 shadow-2xs flex flex-col justify-between shrink-0">
-              <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+            <div className="w-full lg:w-72 bg-slate-50 rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between shrink-0">
+              <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-200/80">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Clinical Ward</span>
-                <span className="text-xs font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md">Chennai Central</span>
+                <span className="text-xs font-extrabold text-blue-700 bg-white border border-blue-200/80 px-2.5 py-0.5 rounded-md shadow-2xs">Chennai Central</span>
               </div>
 
               <div className="space-y-2 mb-4 text-xs font-semibold text-slate-700">
@@ -177,7 +173,7 @@ export function DoctorPortal() {
 
               <button 
                 onClick={() => alert('Geriatric AI Multi-Agent Synthesizer running across 5-year history.')}
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-extrabold py-2.5 rounded-xl shadow-xs shadow-blue-600/20 transition-all flex items-center justify-center gap-1.5"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold py-2.5 rounded-xl shadow-xs shadow-blue-600/20 transition-all flex items-center justify-center gap-1.5"
               >
                 <Sparkles size={13} />
                 <span>Run AI Synthesis</span>

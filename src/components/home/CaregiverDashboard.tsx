@@ -197,33 +197,37 @@ export function CaregiverDashboard() {
         </View>
       </View>
 
-      {/* Action Buttons Row */}
-      <View style={styles.cardActionsRow}>
-        <TouchableOpacity 
-          style={styles.chatActionBtn} 
-          onPress={() => router.push(`/chat/${item.id}` as any)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="sparkles" size={14} color={colors.neutral.white} />
-          <Text style={styles.chatActionText}>Ask AI</Text>
-        </TouchableOpacity>
+      {/* Action Buttons Section */}
+      <View style={styles.cardActionsContainer}>
+        {/* Top Row: Ask AI + Timeline */}
+        <View style={styles.topActionsRow}>
+          <TouchableOpacity 
+            style={styles.chatActionBtn} 
+            onPress={() => router.push(`/chat/${item.id}` as any)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="sparkles" size={14} color={colors.neutral.white} />
+            <Text style={styles.chatActionText}>Ask Health Memory AI</Text>
+          </TouchableOpacity>
 
+          <TouchableOpacity 
+            style={styles.viewTimelineBtn}
+            onPress={() => router.push('/(tabs)/health-memory')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="time-outline" size={15} color={colors.primary.blue} />
+            <Text style={styles.viewTimelineText}>Timeline</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Bottom Row: Medicine Scheduling */}
         <TouchableOpacity 
           style={styles.scheduleActionBtn} 
           onPress={() => openMedicineScheduler(item)}
           activeOpacity={0.8}
         >
-          <Ionicons name="alarm-outline" size={14} color={colors.neutral.white} />
+          <Ionicons name="alarm-outline" size={15} color={colors.neutral.white} />
           <Text style={styles.scheduleActionText}>Medicine Scheduling</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.viewTimelineBtn}
-          onPress={() => router.push('/(tabs)/health-memory')}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="time-outline" size={15} color={colors.primary.blue} />
-          <Text style={styles.viewTimelineText}>Timeline</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -550,59 +554,61 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginTop: 2,
   },
-  cardActionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingTop: spacing.sm,
+  cardActionsContainer: {
+    gap: 8,
+    paddingTop: spacing.sm + 2,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
   },
+  topActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
   chatActionBtn: {
+    flex: 1.25,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 5,
     backgroundColor: colors.primary.blue,
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: 8,
+    paddingVertical: 9,
     borderRadius: borderRadius.full,
   },
   chatActionText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.neutral.white,
-  },
-  scheduleActionBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    backgroundColor: '#7C3AED',
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderRadius: borderRadius.full,
-  },
-  scheduleActionText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: colors.neutral.white,
   },
   viewTimelineBtn: {
+    flex: 0.75,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
+    gap: 4,
     backgroundColor: colors.primary.sky,
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: 8,
+    paddingVertical: 9,
     borderRadius: borderRadius.full,
   },
   viewTimelineText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: colors.primary.blue,
+  },
+  scheduleActionBtn: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#7C3AED',
+    paddingVertical: 10,
+    borderRadius: borderRadius.full,
+  },
+  scheduleActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.neutral.white,
   },
   modalOverlay: {
     flex: 1,

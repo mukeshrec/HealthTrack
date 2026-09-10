@@ -12,7 +12,7 @@ router.get('/:patientId/risks', async (req, res) => {
     const profile = await prisma.patientProfile.findUnique({ where: { userId: patientId } });
     if (!profile) return res.json([]);
 
-    const risks = await prisma.riskFlag.findMany({
+    const risks = await (prisma as any).riskFlag.findMany({
       where: { 
         patientId: profile.id,
         status: 'ACTIVE'
@@ -51,7 +51,7 @@ router.patch('/risks/:riskId', async (req, res) => {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
-    const risk = await prisma.riskFlag.update({
+    const risk = await (prisma as any).riskFlag.update({
       where: { id: riskId },
       data: { status }
     });

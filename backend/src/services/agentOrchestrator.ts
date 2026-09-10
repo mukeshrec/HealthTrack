@@ -98,7 +98,7 @@ STRICT JSON SCHEMA:
   const result = await callGeminiJSON(prompt);
 
   if (result && result.hasRisk) {
-    await prisma.riskFlag.create({
+    await (prisma as any).riskFlag.create({
       data: {
         patientId: profile.id,
         agentType: 'POLYPHARMACY',
@@ -160,7 +160,7 @@ STRICT JSON SCHEMA:
   const result = await callGeminiJSON(prompt);
 
   if (result && result.hasRisk) {
-    await prisma.riskFlag.create({
+    await (prisma as any).riskFlag.create({
       data: {
         patientId: profile.id,
         agentType: 'DECLINE_TRAJECTORY',

@@ -1,8 +1,10 @@
 /**
- * GreetingCard — Personalized greeting banner
+ * GreetingCard — Active Teleconsultation & Daily Clinical Plan
  *
- * Green gradient card with dynamic time-of-day greeting,
- * patient name, motivational message, and illustration.
+ * Clinical card with:
+ * - Next live consultation info
+ * - 1-tap "Enter Video Consultation" action
+ * - Doctor details & specialty
  */
 
 import React from 'react';
@@ -10,126 +12,148 @@ import {
   StyleSheet,
   View,
   Text,
-  Image,
+  TouchableOpacity,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { colors, typography, spacing, borderRadius } from '../../theme';
+import { Ionicons } from '@expo/vector-icons';
+import { colors, typography, spacing, borderRadius, shadows } from '../../theme';
 
 interface GreetingCardProps {
   patientName: string;
-  role?: string;
+  upcomingCount?: number;
+  onPressAction?: () => void;
+  onDoctorPress?: () => void;
+  onJoinCall?: () => void;
 }
 
-const getGreeting = (): string => {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good Morning';
-  if (hour < 17) return 'Good Afternoon';
-  return 'Good Evening';
-};
-
-const getGreetingEmoji = (): string => {
-  const hour = new Date().getHours();
-  if (hour < 12) return '☀️';
-  if (hour < 17) return '🌤️';
-  return '🌙';
-};
-
-export const GreetingCard: React.FC<GreetingCardProps> = ({ patientName, role = 'patient' }) => {
+export const GreetingCard: React.FC<GreetingCardProps> = ({
+  patientName,
+  upcomingCount = 1,
+  onPressAction,
+  onDoctorPress,
+  onJoinCall,
+}) => {
   return (
-    <LinearGradient
-      colors={['#E8F5EE', '#D4EFE3', '#C8EBD8']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.container}
-    >
-      <View style={styles.content}>
-        {/* Left: Greeting text */}
-        <View style={styles.textSection}>
-          <Text style={styles.greeting}>
-            {getGreeting()},
-          </Text>
-          <Text style={styles.name} numberOfLines={1}>
-            {patientName} {getGreetingEmoji()}
-          </Text>
-          <Text style={styles.subtitle}>
-            {role === 'patient' 
-              ? "Let's take care of your health today."
-              : role === 'guardian'
-              ? "Here's an update on Lakshmi's health."
-              : "Review your patient's daily status."}
-          </Text>
+    <View style={styles.card}>
+      {/* Consultation Alert Banner */}
+      <View style={styles.topBadgeRow}>
+        <View style={styles.livePill}>
+          <View style={styles.pulseDot} />
+          <Text style={styles.liveText}>Upcoming Consultation</Text>
         </View>
-
-        {/* Right: Illustration + Motivational tag */}
-        <View style={styles.imageSection}>
-          <View style={styles.motivationBubble}>
-            <Text style={styles.motivationText}>
-              A healthier{'\n'}tomorrow{'\n'}together 💚
-            </Text>
-          </View>
-          <Image
-            source={require('../../../assets/images/greeting-illustration.jpg')}
-            style={styles.illustration}
-            resizeMode="cover"
-          />
-        </View>
+        <Text style={styles.timeTag}>Today • 04:30 PM</Text>
       </View>
-    </LinearGradient>
+
+      {/* Doctor Info */}
+      <TouchableOpacity
+        style={styles.doctorRow}
+        onPress={onDoctorPress}
+        activeOpacity={0.7}
+      >
+        <View style={styles.docAvatarCircle}>
+          <Ionicons name="videocam" size={20} color={colors.primary.blue} />
+        </View>
+        <View style={styles.docTextCol}>
+          <Text style={styles.doctorName}>Dr. Ramesh Kumar, MD</Text>
+          <Text style={styles.doctorSpecialty}>Cardiology & Preventive Health Review</Text>
+        </View>
+      </TouchableOpacity>
+
+      {/* Call to action button */}
+      <TouchableOpacity
+        style={styles.joinBtn}
+        onPress={onJoinCall}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="videocam-outline" size={18} color="#FFFFFF" />
+        <Text style={styles.joinBtnText}>Join Teleconsultation</Text>
+      </TouchableOpacity>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    marginHorizontal: spacing.lg,
-    borderRadius: borderRadius.xl,
-    overflow: 'hidden',
-    minHeight: 140,
-  },
-  content: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: borderRadius.lg,
     padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.neutral[200],
+    ...shadows.card,
+    marginBottom: spacing.md,
   },
-  textSection: {
-    flex: 1,
-    paddingRight: spacing.sm,
-  },
-  greeting: {
-    ...typography.bodyLarge,
-    color: colors.text.primary,
-  },
-  name: {
-    ...typography.displayMedium,
-    color: colors.text.primary,
-    marginTop: 2,
-  },
-  subtitle: {
-    ...typography.body,
-    color: colors.text.secondary,
-    marginTop: spacing.sm,
-  },
-  imageSection: {
+  topBadgeRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    position: 'relative',
-  },
-  motivationBubble: {
-    backgroundColor: 'rgba(255, 255, 255, 0.75)',
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    justifyContent: 'space-between',
     marginBottom: spacing.sm,
   },
-  motivationText: {
-    ...typography.caption,
-    color: colors.primary.teal,
-    textAlign: 'center',
-    fontWeight: '500',
-    lineHeight: 16,
+  livePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
   },
-  illustration: {
-    width: 90,
-    height: 90,
-    borderRadius: borderRadius.xl,
+  pulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.primary.blue,
+  },
+  liveText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primary.blue,
+  },
+  timeTag: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.text.secondary,
+  },
+  doctorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginVertical: spacing.sm,
+  },
+  docAvatarCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  docTextCol: {
+    flex: 1,
+  },
+  doctorName: {
+    ...typography.h3,
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+  doctorSpecialty: {
+    ...typography.caption,
+    color: colors.text.secondary,
+    marginTop: 2,
+  },
+  joinBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary.blue,
+    borderRadius: borderRadius.md,
+    paddingVertical: 12,
+    marginTop: spacing.sm,
+    gap: 6,
+    ...shadows.button,
+  },
+  joinBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

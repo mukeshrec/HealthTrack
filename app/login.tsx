@@ -1,8 +1,29 @@
+/**
+ * Login Screen — MyCare+
+ *
+ * Clean clinical authentication screen with:
+ * - Official MyCare+ emblem
+ * - Modern inputs with icons
+ * - Instant role-based routing
+ */
+
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, SafeAreaView, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TextInput,
+  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  Image,
+} from 'react-native';
 import { Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, typography, spacing, borderRadius } from '../src/theme';
+import { colors, typography, spacing, borderRadius, shadows } from '../src/theme';
 import { useAuth } from '../src/context/AuthContext';
 import { Button } from '../src/components/common/Button';
 
@@ -10,19 +31,19 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { signIn } = useAuth();
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert('Required Fields', 'Please enter your email and password');
       return;
     }
     setIsLoading(true);
     try {
-      await signIn(email, password);
-      // Navigation handled by layout guard
+      await signIn(email.trim(), password);
     } catch (error: any) {
-      Alert.alert('Login Failed', error.message || 'Invalid credentials');
+      Alert.alert('Login Failed', error.message || 'Invalid email or password');
       setIsLoading(false);
     }
   };
@@ -33,51 +54,77 @@ export default function LoginScreen() {
         style={styles.keyboardView} 
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Brand Header */}
           <View style={styles.header}>
-            <View style={styles.logoIcon}>
-              <Ionicons name="heart" size={32} color={colors.primary.teal} />
+            <View style={styles.logoWrapper}>
+              <Image
+                source={require('../assets/images/app-emblem.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
             </View>
-            <Text style={styles.brandTitle}>Welcome Back</Text>
-            <Text style={styles.tagline}>Log in to access your health memory.</Text>
+            <View style={styles.titleRow}>
+              <Text style={styles.brandTitle}>mycare<Text style={styles.brandPlus}>+</Text></Text>
+            </View>
+            <Text style={styles.tagline}>Access your longitudinal health memory & care.</Text>
           </View>
 
-          <View style={styles.form}>
+          {/* Login Card */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Sign In</Text>
+
+            {/* Email Field */}
             <Text style={styles.label}>Email Address</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your email"
-              placeholderTextColor={colors.neutral.gray400}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              value={email}
-              onChangeText={setEmail}
-            />
+            <View style={styles.inputWrapper}>
+              <Ionicons name="mail-outline" size={18} color={colors.text.secondary} style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="name@example.com"
+                placeholderTextColor={colors.text.tertiary}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={email}
+                onChangeText={setEmail}
+              />
+            </View>
 
+            {/* Password Field */}
             <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="••••••••"
-              placeholderTextColor={colors.neutral.gray400}
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-            />
+            <View style={styles.inputWrapper}>
+              <Ionicons name="lock-closed-outline" size={18} color={colors.text.secondary} style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="••••••••"
+                placeholderTextColor={colors.text.tertiary}
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+              />
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+                <Ionicons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={18}
+                  color={colors.text.secondary}
+                />
+              </TouchableOpacity>
+            </View>
 
+            {/* Sign In Button */}
             <Button
-              title={isLoading ? "Logging in..." : "Log In"}
-              variant="primary"
+              title={isLoading ? 'Verifying credentials...' : 'Sign In'}
+              loading={isLoading}
               size="large"
               onPress={handleLogin}
-              disabled={isLoading}
               style={styles.submitButton}
             />
 
+            {/* Register Link */}
             <View style={styles.footer}>
-              <Text style={styles.footerText}>Don't have an account? </Text>
+              <Text style={styles.footerText}>New to MyCare+? </Text>
               <Link href="/register" asChild>
                 <TouchableOpacity>
-                  <Text style={styles.footerLink}>Create one</Text>
+                  <Text style={styles.footerLink}>Create an account</Text>
                 </TouchableOpacity>
               </Link>
             </View>
@@ -104,46 +151,81 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: spacing.xxxl,
+    marginBottom: spacing.xl,
   },
-  logoIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
-    backgroundColor: colors.primary.tealSoft,
+  logoWrapper: {
+    width: 72,
+    height: 72,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  logoImage: {
+    width: 72,
+    height: 72,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   brandTitle: {
-    ...typography.displayMedium,
-    color: colors.text.primary,
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#0B2545',
+    letterSpacing: -0.5,
+  },
+  brandPlus: {
+    color: '#0284C7',
+    fontWeight: '800',
   },
   tagline: {
     ...typography.body,
     color: colors.text.secondary,
     textAlign: 'center',
     marginTop: spacing.xs,
+    maxWidth: 280,
   },
-  form: {
-    width: '100%',
+  card: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: borderRadius.xxl,
+    padding: spacing.xl,
+    borderWidth: 1,
+    borderColor: '#EDF2FA',
+    ...shadows.card,
+  },
+  cardTitle: {
+    ...typography.h2,
+    color: colors.text.primary,
+    fontWeight: '700',
+    marginBottom: spacing.base,
   },
   label: {
-    ...typography.smallMedium,
-    color: colors.text.secondary,
+    ...typography.smallSemibold,
+    color: colors.text.primary,
     marginBottom: spacing.xs,
-    marginLeft: 4,
   },
-  input: {
-    backgroundColor: colors.neutral.white,
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: colors.border.light,
+    borderColor: '#E2E8F0',
     borderRadius: borderRadius.lg,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    marginBottom: spacing.base,
+    height: 50,
+  },
+  inputIcon: {
+    marginRight: spacing.sm,
+  },
+  input: {
+    flex: 1,
     ...typography.body,
     color: colors.text.primary,
-    marginBottom: spacing.lg,
+    paddingVertical: 0,
+  },
+  eyeBtn: {
+    padding: spacing.xs,
   },
   submitButton: {
     marginTop: spacing.md,
@@ -159,6 +241,7 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     ...typography.bodySemibold,
-    color: colors.primary.teal,
+    color: colors.primary.blue,
+    fontWeight: '700',
   },
 });

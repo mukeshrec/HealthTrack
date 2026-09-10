@@ -1,8 +1,7 @@
 /**
- * Button — Accessible button component
+ * Button — Modern Medical Button Component
  *
- * Ensures 48x48 minimum touch target for elderly accessibility.
- * Supports primary, secondary, outline, and text variants.
+ * Supports pill styles, primary gradients, soft tints, outlines, and icon adornments.
  */
 
 import React from 'react';
@@ -12,11 +11,14 @@ import {
   Text,
   ActivityIndicator,
   ViewStyle,
+  TextStyle,
   StyleProp,
+  View,
 } from 'react-native';
-import { colors, borderRadius, spacing, typography, touchTarget } from '../../theme';
+import { Ionicons } from '@expo/vector-icons';
+import { colors, borderRadius, spacing, typography, shadows, touchTarget } from '../../theme';
 
-type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'text';
+type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
 type ButtonSize = 'small' | 'medium' | 'large';
 
 interface ButtonProps {
@@ -24,10 +26,14 @@ interface ButtonProps {
   onPress?: () => void;
   variant?: ButtonVariant;
   size?: ButtonSize;
+  icon?: keyof typeof Ionicons.glyphMap;
+  iconPosition?: 'left' | 'right';
   loading?: boolean;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
   accessibilityLabel?: string;
+  pill?: boolean;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -35,43 +41,80 @@ export const Button: React.FC<ButtonProps> = ({
   onPress,
   variant = 'primary',
   size = 'medium',
+  icon,
+  iconPosition = 'right',
   loading = false,
   disabled = false,
   style,
+  textStyle,
   accessibilityLabel,
+  pill = true,
 }) => {
   const buttonStyles = [
     styles.base,
     styles[variant],
     styles[`size_${size}`],
+    pill ? styles.pill : styles.rounded,
+    variant === 'primary' && styles.primaryShadow,
     disabled && styles.disabled,
     style,
   ];
 
-  const textStyles = [
-    styles.text,
-    styles[`text_${variant}`],
-    styles[`text_${size}`],
-    disabled && styles.textDisabled,
-  ];
+  const getIconColor = () => {
+    if (disabled) return colors.neutral.gray400;
+    if (variant === 'primary' || variant === 'danger') return colors.neutral.white;
+    if (variant === 'secondary') return colors.primary.blue;
+    if (variant === 'outline') return colors.primary.blue;
+    return colors.primary.blue;
+  };
+
+  const iconSize = size === 'small' ? 14 : size === 'medium' ? 18 : 20;
 
   return (
     <TouchableOpacity
       style={buttonStyles}
       onPress={onPress}
       disabled={disabled || loading}
-      activeOpacity={0.7}
+      activeOpacity={0.8}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel || title}
       accessibilityState={{ disabled }}
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === 'primary' ? colors.neutral.white : colors.primary.teal}
+          color={variant === 'primary' ? colors.neutral.white : colors.primary.blue}
           size="small"
         />
       ) : (
-        <Text style={textStyles}>{title}</Text>
+        <View style={styles.contentRow}>
+          {icon && iconPosition === 'left' && (
+            <Ionicons
+              name={icon}
+              size={iconSize}
+              color={getIconColor()}
+              style={styles.iconLeft}
+            />
+          )}
+          <Text
+            style={[
+              styles.text,
+              styles[`text_${variant}`],
+              styles[`text_${size}`],
+              disabled && styles.textDisabled,
+              textStyle,
+            ]}
+          >
+            {title}
+          </Text>
+          {icon && iconPosition === 'right' && (
+            <Ionicons
+              name={icon}
+              size={iconSize}
+              color={getIconColor()}
+              style={styles.iconRight}
+            />
+          )}
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -81,62 +124,89 @@ const styles = StyleSheet.create({
   base: {
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: touchTarget.minHeight,
-    minWidth: touchTarget.minWidth,
-    borderRadius: borderRadius.xl,
+    flexDirection: 'row',
+  },
+  pill: {
+    borderRadius: borderRadius.full,
+  },
+  rounded: {
+    borderRadius: borderRadius.lg,
+  },
+  contentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconLeft: {
+    marginRight: spacing.sm,
+  },
+  iconRight: {
+    marginLeft: spacing.sm,
   },
 
   // ── Variants ────────────────────────────
   primary: {
-    backgroundColor: colors.primary.teal,
+    backgroundColor: colors.primary.blue,
+  },
+  primaryShadow: {
+    ...shadows.button,
   },
   secondary: {
-    backgroundColor: colors.primary.tealSoft,
+    backgroundColor: colors.primary.sky,
   },
   outline: {
     backgroundColor: 'transparent',
     borderWidth: 1.5,
-    borderColor: colors.primary.teal,
+    borderColor: colors.primary.blue,
   },
-  text: {
+  ghost: {
     backgroundColor: 'transparent',
+  },
+  danger: {
+    backgroundColor: colors.status.error,
   },
   disabled: {
     opacity: 0.5,
+    shadowOpacity: 0,
+    elevation: 0,
   },
 
   // ── Sizes ───────────────────────────────
   size_small: {
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    minHeight: 36,
-    borderRadius: borderRadius.lg,
+    paddingVertical: spacing.xs + 2,
+    minHeight: 34,
   },
   size_medium: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
+    minHeight: touchTarget.minHeight,
   },
   size_large: {
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.xxl,
     paddingVertical: spacing.base,
+    minHeight: 52,
   },
 
   // ── Text ────────────────────────────────
-  // @ts-ignore – RN style compatibility
-  text_base: {
-    ...typography.buttonMedium,
+  text: {
+    fontWeight: '700',
+    textAlign: 'center',
   },
   text_primary: {
     color: colors.neutral.white,
   },
   text_secondary: {
-    color: colors.primary.teal,
+    color: colors.primary.blue,
   },
   text_outline: {
-    color: colors.primary.teal,
+    color: colors.primary.blue,
   },
-  text_text: {
-    color: colors.primary.teal,
+  text_ghost: {
+    color: colors.primary.blue,
+  },
+  text_danger: {
+    color: colors.neutral.white,
   },
   text_small: {
     ...typography.buttonSmall,
@@ -148,6 +218,6 @@ const styles = StyleSheet.create({
     ...typography.buttonLarge,
   },
   textDisabled: {
-    opacity: 0.7,
+    color: colors.neutral.gray400,
   },
 });

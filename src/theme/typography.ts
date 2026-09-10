@@ -100,11 +100,32 @@ export const typography = {
     lineHeight: 20,
   } as TextStyle,
 
+  smallSemibold: {
+    fontFamily,
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 20,
+  } as TextStyle,
+
   caption: {
     fontFamily,
     fontSize: 13,
     fontWeight: '400',
     lineHeight: 18,
+  } as TextStyle,
+
+  captionMedium: {
+    fontFamily,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
+  } as TextStyle,
+
+  tiny: {
+    fontFamily,
+    fontSize: 11,
+    fontWeight: '500',
+    lineHeight: 14,
   } as TextStyle,
 
   // ── Button / Label ────────────────────────────────

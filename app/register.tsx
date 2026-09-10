@@ -1,8 +1,29 @@
+/**
+ * Register Screen — MyCare+
+ *
+ * Clean medical onboarding registration with:
+ * - Patient vs Caregiver role selection tabs
+ * - Official MyCare+ branding
+ * - Secure registration flow
+ */
+
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, SafeAreaView, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { Link, useRouter } from 'expo-router';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TextInput,
+  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  Image,
+} from 'react-native';
+import { Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, typography, spacing, borderRadius } from '../src/theme';
+import { colors, typography, spacing, borderRadius, shadows } from '../src/theme';
 import { useAuth } from '../src/context/AuthContext';
 import { Button } from '../src/components/common/Button';
 
@@ -12,20 +33,24 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'patient' | 'caregiver'>('patient');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { register } = useAuth();
-  const router = useRouter();
 
   const handleRegister = async () => {
-    if (!name || !email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+    if (!name.trim() || !email.trim() || !password) {
+      Alert.alert('Required Fields', 'Please fill in all details to continue');
       return;
     }
+    if (password.length < 6) {
+      Alert.alert('Weak Password', 'Password must be at least 6 characters');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      await register(email, password, name, role);
-      // AuthContext will automatically redirect via navigation guard
+      await register(email.trim(), password, name.trim(), role);
     } catch (error: any) {
-      Alert.alert('Registration Failed', error.message || 'Something went wrong');
+      Alert.alert('Registration Failed', error.message || 'Could not complete registration');
       setIsLoading(false);
     }
   };
@@ -36,75 +61,124 @@ export default function RegisterScreen() {
         style={styles.keyboardView} 
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Header */}
           <View style={styles.header}>
-            <View style={styles.logoIcon}>
-              <Ionicons name="heart" size={32} color={colors.primary.teal} />
+            <View style={styles.logoWrapper}>
+              <Image
+                source={require('../assets/images/app-emblem.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
             </View>
-            <Text style={styles.brandTitle}>Create an Account</Text>
-            <Text style={styles.tagline}>Join Health Memory today.</Text>
+            <View style={styles.titleRow}>
+              <Text style={styles.brandTitle}>mycare<Text style={styles.brandPlus}>+</Text></Text>
+            </View>
+            <Text style={styles.tagline}>Create your profile to start your digital health timeline.</Text>
           </View>
 
-          <View style={styles.form}>
+          {/* Form Card */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Create Account</Text>
+
+            {/* Role Selector Tabs */}
+            <Text style={styles.label}>I am joining as a</Text>
             <View style={styles.roleSelector}>
               <TouchableOpacity 
                 style={[styles.roleOption, role === 'patient' && styles.roleActive]}
                 onPress={() => setRole('patient')}
+                activeOpacity={0.8}
               >
-                <Text style={[styles.roleText, role === 'patient' && styles.roleTextActive]}>Patient</Text>
+                <Ionicons
+                  name="person"
+                  size={16}
+                  color={role === 'patient' ? colors.primary.blue : colors.text.secondary}
+                />
+                <Text style={[styles.roleText, role === 'patient' && styles.roleTextActive]}>
+                  Patient
+                </Text>
               </TouchableOpacity>
+
               <TouchableOpacity 
                 style={[styles.roleOption, role === 'caregiver' && styles.roleActive]}
                 onPress={() => setRole('caregiver')}
+                activeOpacity={0.8}
               >
-                <Text style={[styles.roleText, role === 'caregiver' && styles.roleTextActive]}>Caregiver</Text>
+                <Ionicons
+                  name="heart"
+                  size={16}
+                  color={role === 'caregiver' ? colors.primary.blue : colors.text.secondary}
+                />
+                <Text style={[styles.roleText, role === 'caregiver' && styles.roleTextActive]}>
+                  Caregiver
+                </Text>
               </TouchableOpacity>
             </View>
 
+            {/* Full Name */}
             <Text style={styles.label}>Full Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Mukesh V"
-              placeholderTextColor={colors.neutral.gray400}
-              value={name}
-              onChangeText={setName}
-            />
+            <View style={styles.inputWrapper}>
+              <Ionicons name="person-outline" size={18} color={colors.text.secondary} style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Lakshmi Devi"
+                placeholderTextColor={colors.text.tertiary}
+                value={name}
+                onChangeText={setName}
+              />
+            </View>
 
+            {/* Email */}
             <Text style={styles.label}>Email Address</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="mukesh@example.com"
-              placeholderTextColor={colors.neutral.gray400}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              value={email}
-              onChangeText={setEmail}
-            />
+            <View style={styles.inputWrapper}>
+              <Ionicons name="mail-outline" size={18} color={colors.text.secondary} style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="name@example.com"
+                placeholderTextColor={colors.text.tertiary}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={email}
+                onChangeText={setEmail}
+              />
+            </View>
 
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="••••••••"
-              placeholderTextColor={colors.neutral.gray400}
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-            />
+            {/* Password */}
+            <Text style={styles.label}>Password (min 6 characters)</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="lock-closed-outline" size={18} color={colors.text.secondary} style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="••••••••"
+                placeholderTextColor={colors.text.tertiary}
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+              />
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+                <Ionicons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={18}
+                  color={colors.text.secondary}
+                />
+              </TouchableOpacity>
+            </View>
 
+            {/* Sign Up Button */}
             <Button
-              title={isLoading ? "Creating Account..." : "Sign Up"}
-              variant="primary"
+              title={isLoading ? 'Creating account...' : 'Create Account'}
+              loading={isLoading}
               size="large"
               onPress={handleRegister}
-              disabled={isLoading}
               style={styles.submitButton}
             />
 
+            {/* Login Link */}
             <View style={styles.footer}>
               <Text style={styles.footerText}>Already have an account? </Text>
               <Link href="/login" asChild>
                 <TouchableOpacity>
-                  <Text style={styles.footerLink}>Log in</Text>
+                  <Text style={styles.footerLink}>Sign in</Text>
                 </TouchableOpacity>
               </Link>
             </View>
@@ -131,75 +205,109 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: spacing.xxl,
+    marginBottom: spacing.xl,
   },
-  logoIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
-    backgroundColor: colors.primary.tealSoft,
+  logoWrapper: {
+    width: 68,
+    height: 68,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  logoImage: {
+    width: 68,
+    height: 68,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   brandTitle: {
-    ...typography.displayMedium,
-    color: colors.text.primary,
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#0B2545',
+    letterSpacing: -0.5,
+  },
+  brandPlus: {
+    color: '#0284C7',
+    fontWeight: '800',
   },
   tagline: {
     ...typography.body,
     color: colors.text.secondary,
     textAlign: 'center',
     marginTop: spacing.xs,
+    maxWidth: 290,
   },
-  form: {
-    width: '100%',
+  card: {
+    backgroundColor: colors.neutral.white,
+    borderRadius: borderRadius.xxl,
+    padding: spacing.xl,
+    borderWidth: 1,
+    borderColor: '#EDF2FA',
+    ...shadows.card,
+  },
+  cardTitle: {
+    ...typography.h2,
+    color: colors.text.primary,
+    fontWeight: '700',
+    marginBottom: spacing.base,
   },
   roleSelector: {
     flexDirection: 'row',
-    backgroundColor: colors.neutral.gray100,
+    backgroundColor: '#F1F5F9',
     borderRadius: borderRadius.lg,
     padding: 4,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.base,
   },
   roleOption: {
     flex: 1,
-    paddingVertical: spacing.sm,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: spacing.sm,
     borderRadius: borderRadius.md,
   },
   roleActive: {
     backgroundColor: colors.neutral.white,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    ...shadows.sm,
   },
   roleText: {
-    ...typography.bodyMedium,
+    ...typography.smallSemibold,
     color: colors.text.secondary,
   },
   roleTextActive: {
-    color: colors.primary.teal,
-    fontWeight: '600',
+    color: colors.primary.blue,
+    fontWeight: '700',
   },
   label: {
-    ...typography.smallMedium,
-    color: colors.text.secondary,
+    ...typography.smallSemibold,
+    color: colors.text.primary,
     marginBottom: spacing.xs,
-    marginLeft: 4,
   },
-  input: {
-    backgroundColor: colors.neutral.white,
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: colors.border.light,
+    borderColor: '#E2E8F0',
     borderRadius: borderRadius.lg,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    marginBottom: spacing.base,
+    height: 50,
+  },
+  inputIcon: {
+    marginRight: spacing.sm,
+  },
+  input: {
+    flex: 1,
     ...typography.body,
     color: colors.text.primary,
-    marginBottom: spacing.lg,
+    paddingVertical: 0,
+  },
+  eyeBtn: {
+    padding: spacing.xs,
   },
   submitButton: {
     marginTop: spacing.md,
@@ -215,6 +323,7 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     ...typography.bodySemibold,
-    color: colors.primary.teal,
+    color: colors.primary.blue,
+    fontWeight: '700',
   },
 });

@@ -1,5 +1,10 @@
 /**
- * Root Layout — Health Memory App
+ * Root Layout — MyCare+ Enterprise Medical App
+ *
+ * Configures:
+ * - 5-Second White Animated Landing Page on Startup
+ * - Auth Provider & Role-based Navigation Guard
+ * - Deep linking & splash screen management
  */
 
 import { useFonts } from 'expo-font';
@@ -9,7 +14,7 @@ import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LandingScreen } from '../src/components/common';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -30,20 +35,16 @@ function RootLayoutNav() {
     const inAuthGroup = segments[0] === 'login' || segments[0] === 'register';
 
     if (!user && !inAuthGroup) {
-      // Not logged in -> go to login
       router.replace('/login');
     } else if (user && inAuthGroup) {
-      // Logged in and on login/register -> redirect appropriately
       if (user.role === 'patient' && !onboardingComplete) {
         router.replace('/onboarding');
       } else {
         router.replace('/(tabs)');
       }
     } else if (user && user.role === 'patient' && !onboardingComplete && segments[0] !== 'onboarding') {
-      // Patient hasn't completed onboarding -> force onboarding
       router.replace('/onboarding');
     } else if (user && onboardingComplete && segments[0] === 'onboarding') {
-      // Onboarding complete, get out of onboarding page
       router.replace('/(tabs)');
     }
   }, [user, isLoading, segments, onboardingComplete]);
@@ -51,10 +52,12 @@ function RootLayoutNav() {
   return (
     <>
       <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#F8F9FC' } }}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#F8FAFC' } }}>
         <Stack.Screen name="login" />
         <Stack.Screen name="register" />
         <Stack.Screen name="onboarding" />
+        <Stack.Screen name="upload" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="chat/[patientId]" options={{ presentation: 'card' }} />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="modal" options={{ presentation: 'modal', headerShown: true, headerTitle: '' }} />
       </Stack>
@@ -66,6 +69,8 @@ export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
+
+  const [showLanding, setShowLanding] = useState(true);
 
   useEffect(() => {
     if (error) throw error;
@@ -82,6 +87,14 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <RootLayoutNav />
+
+      {/* 5-Second Animated Landing Page */}
+      {showLanding && (
+        <LandingScreen
+          durationMs={5000}
+          onFinish={() => setShowLanding(false)}
+        />
+      )}
     </AuthProvider>
   );
 }

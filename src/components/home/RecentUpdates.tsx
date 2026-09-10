@@ -1,8 +1,7 @@
 /**
- * RecentUpdates — Health update timeline
+ * RecentUpdates — Longitudinal Medical Updates & Lab Timeline
  *
- * Shows recent mood/health entries with emoji face icons,
- * dates, and descriptions.
+ * Feed of recent health activities, lab uploads, and vitals logs.
  */
 
 import React from 'react';
@@ -10,94 +9,154 @@ import {
   StyleSheet,
   View,
   Text,
+  TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SectionHeader } from '../common/SectionHeader';
-import { colors, typography, spacing, borderRadius } from '../../theme';
-import type { HealthUpdate, MoodType } from '../../types';
+import { colors, typography, spacing, borderRadius, shadows } from '../../theme';
+import type { HealthUpdate } from '../../types';
 
 interface RecentUpdatesProps {
   updates: HealthUpdate[];
+  onSeeAll?: () => void;
+  onUpdatePress?: (id?: string) => void;
 }
 
-const getMoodIcon = (mood: MoodType): {
-  name: keyof typeof Ionicons.glyphMap;
-  color: string;
-  bgColor: string;
-} => {
+const getMoodConfig = (mood: HealthUpdate['mood']) => {
   switch (mood) {
     case 'great':
-      return { name: 'happy', color: colors.mood.great, bgColor: colors.status.successLight };
+      return { icon: 'happy-outline' as const, color: '#059669', bg: '#ECFDF5', title: 'Optimal Health Log' };
     case 'good':
-      return { name: 'happy-outline', color: colors.mood.good, bgColor: colors.primary.tealSoft };
+      return { icon: 'fitness-outline' as const, color: '#2563EB', bg: '#EFF6FF', title: 'Clinical Vitals Entry' };
     case 'neutral':
-      return { name: 'sad-outline', color: colors.mood.neutral, bgColor: colors.status.warningLight };
+      return { icon: 'pulse-outline' as const, color: '#D97706', bg: '#FFFBEB', title: 'Routine Check-In' };
     case 'bad':
-      return { name: 'sad', color: colors.mood.bad, bgColor: colors.status.errorLight };
+      return { icon: 'alert-circle-outline' as const, color: '#DC2626', bg: '#FEF2F2', title: 'Symptom Flag' };
+    default:
+      return { icon: 'document-text-outline' as const, color: '#2563EB', bg: '#EFF6FF', title: 'Medical Update' };
   }
 };
 
-const UpdateItem: React.FC<{ update: HealthUpdate }> = ({ update }) => {
-  const mood = getMoodIcon(update.mood);
-
-  return (
-    <View style={styles.updateRow}>
-      <View style={[styles.moodIcon, { backgroundColor: mood.bgColor }]}>
-        <Ionicons name={mood.name} size={20} color={mood.color} />
-      </View>
-      <View style={styles.updateInfo}>
-        <Text style={styles.updateDate}>{update.date}</Text>
-        <Text style={styles.updateDesc}>{update.description}</Text>
-      </View>
-    </View>
-  );
-};
-
-export const RecentUpdates: React.FC<RecentUpdatesProps> = ({ updates }) => {
+export const RecentUpdates: React.FC<RecentUpdatesProps> = ({
+  updates,
+  onSeeAll,
+  onUpdatePress,
+}) => {
   return (
     <View style={styles.container}>
-      <SectionHeader
-        title="Recent Updates"
-        icon="sparkles"
-        iconColor={colors.primary.teal}
-        onSeeAll={() => {}}
-        compact
-      />
+      <View style={styles.headerRow}>
+        <Text style={styles.sectionTitle}>Recent Health Records</Text>
+        <TouchableOpacity onPress={onSeeAll} activeOpacity={0.7}>
+          <Text style={styles.seeAllText}>Full History</Text>
+        </TouchableOpacity>
+      </View>
 
-      {updates.map((update) => (
-        <UpdateItem key={update.id} update={update} />
-      ))}
+      <View style={styles.cardList}>
+        {updates.map((item, index) => {
+          const config = getMoodConfig(item.mood);
+          return (
+            <React.Fragment key={item.id}>
+              {index > 0 && <View style={styles.divider} />}
+              <TouchableOpacity
+                style={styles.updateCard}
+                onPress={() => onUpdatePress?.(item.id)}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.iconCircle, { backgroundColor: config.bg }]}>
+                  <Ionicons
+                    name={config.icon}
+                    size={18}
+                    color={config.color}
+                  />
+                </View>
+
+                <View style={styles.textCol}>
+                  <View style={styles.titleRow}>
+                    <Text style={styles.updateTitle}>{config.title}</Text>
+                    <Text style={styles.timeAgo}>{item.date}</Text>
+                  </View>
+                  <Text style={styles.updateDesc} numberOfLines={2}>
+                    {item.description}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </React.Fragment>
+          );
+        })}
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    paddingHorizontal: spacing.lg,
+    marginVertical: spacing.md,
+    marginBottom: spacing.xxl,
   },
-  updateRow: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
   },
-  moodIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: borderRadius.full,
+  sectionTitle: {
+    ...typography.h3,
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+  seeAllText: {
+    ...typography.caption,
+    fontWeight: '600',
+    color: colors.primary.blue,
+  },
+  cardList: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.neutral[200],
+    ...shadows.card,
+    paddingHorizontal: spacing.md,
+  },
+  updateCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+    gap: spacing.md,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.neutral[100],
+  },
+  iconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.sm,
+    marginTop: 2,
   },
-  updateInfo: {
+  textCol: {
     flex: 1,
   },
-  updateDate: {
-    ...typography.caption,
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  updateTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+  timeAgo: {
+    fontSize: 11,
     color: colors.text.tertiary,
   },
   updateDesc: {
-    ...typography.smallMedium,
-    color: colors.text.primary,
-    marginTop: 1,
+    fontSize: 12,
+    color: colors.text.secondary,
+    lineHeight: 16,
   },
 });

@@ -1,8 +1,10 @@
 /**
- * Header — App top bar
+ * Header — MyCare+ Enterprise Top Bar & Search System
  *
- * Displays the Health Memory logo, notification bell with badge,
- * and user avatar with name and dropdown chevron.
+ * Clinical brand bar with:
+ * - MyCare+ heart emblem & active health index
+ * - Quick Emergency SOS trigger
+ * - Integrated medical search bar & filter chips
  */
 
 import React from 'react';
@@ -11,135 +13,285 @@ import {
   View,
   Text,
   TouchableOpacity,
+  TextInput,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, typography, spacing } from '../../theme';
-import { Badge } from '../common/Badge';
+import { colors, typography, spacing, borderRadius } from '../../theme';
 import { Avatar } from '../common/Avatar';
 import type { Patient } from '../../types';
 
 interface HeaderProps {
   patient: Patient;
+  searchValue?: string;
+  onSearchChange?: (val: string) => void;
+  activeFilter?: string;
+  onFilterSelect?: (filter: string) => void;
+  onNotificationPress?: () => void;
+  onEmergencyPress?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ patient }) => {
+const FILTER_TAGS = ['All', 'Vitals', 'Meds', 'Labs', 'Doctors'];
+
+export const Header: React.FC<HeaderProps> = ({
+  patient,
+  searchValue = '',
+  onSearchChange,
+  activeFilter = 'All',
+  onFilterSelect,
+  onNotificationPress,
+  onEmergencyPress,
+}) => {
   return (
     <View style={styles.container}>
-      {/* Logo + Brand */}
-      <View style={styles.logoSection}>
-        <View style={styles.logoIcon}>
-          <Ionicons name="heart" size={22} color={colors.primary.teal} />
-        </View>
-        <View>
-          <Text style={styles.brandTitle}>
-            Health{' '}
-            <Text style={styles.brandAccent}>Memory</Text>
-          </Text>
-          <Text style={styles.tagline}>
-            Your health. Your memory. Wherever you go.
-          </Text>
-        </View>
-      </View>
-
-      {/* Right Side: Bell + Avatar */}
-      <View style={styles.rightSection}>
-        {/* Notification Bell */}
-        <TouchableOpacity
-          style={styles.bellButton}
-          accessibilityLabel={`${patient.notificationCount} notifications`}
-          accessibilityRole="button"
-        >
-          <Ionicons
-            name="notifications-outline"
-            size={24}
-            color={colors.text.primary}
+      {/* Top Brand Bar */}
+      <View style={styles.topRow}>
+        <View style={styles.brandRow}>
+          <Image
+            source={require('../../../assets/images/app-emblem.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
           />
-          <Badge count={patient.notificationCount} />
-        </TouchableOpacity>
-
-        {/* User Avatar + Name */}
-        <TouchableOpacity
-          style={styles.profileButton}
-          accessibilityLabel={`Profile: ${patient.firstName}`}
-          accessibilityRole="button"
-        >
-          <Avatar
-            source={require('../../../assets/images/avatar-lakshmi.jpg')}
-            name={`${patient.firstName} ${patient.lastName}`}
-            size={40}
-          />
-          <View style={styles.nameRow}>
-            <Text style={styles.profileName}>{patient.firstName}</Text>
-            <Ionicons
-              name="chevron-down"
-              size={14}
-              color={colors.text.secondary}
-            />
+          <View>
+            <Text style={styles.brandText}>
+              mycare<Text style={styles.brandPlus}>+</Text>
+            </Text>
+            <View style={styles.healthStatusRow}>
+              <View style={styles.statusDot} />
+              <Text style={styles.healthStatusText}>Health Index 96% • Stable</Text>
+            </View>
           </View>
-        </TouchableOpacity>
+        </View>
+
+        <View style={styles.actionsRow}>
+          {/* Emergency SOS Button */}
+          <TouchableOpacity
+            style={styles.sosButton}
+            onPress={onEmergencyPress}
+            activeOpacity={0.8}
+            accessibilityLabel="Trigger Emergency SOS"
+          >
+            <Ionicons name="call" size={14} color="#DC2626" />
+            <Text style={styles.sosText}>SOS</Text>
+          </TouchableOpacity>
+
+          {/* Notifications */}
+          <TouchableOpacity
+            style={styles.bellButton}
+            onPress={onNotificationPress}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="notifications-outline" size={20} color="#FFFFFF" />
+            {patient.notificationCount > 0 && (
+              <View style={styles.badgeDot}>
+                <Text style={styles.badgeDotText}>{patient.notificationCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* Avatar */}
+          <Avatar name={`${patient.firstName} ${patient.lastName}`} size={38} online />
+        </View>
       </View>
+
+      {/* Patient Greeting & Subtitle */}
+      <View style={styles.greetingSection}>
+        <Text style={styles.greetingTitle}>
+          Hello, {patient.firstName} 👋
+        </Text>
+        <Text style={styles.greetingSubtitle}>
+          Your daily clinical care plan & health memory
+        </Text>
+      </View>
+
+      {/* Embedded Search Input */}
+      {onSearchChange && (
+        <View style={styles.searchBar}>
+          <Ionicons name="search-outline" size={18} color={colors.neutral[400]} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search records, medications, vitals..."
+            placeholderTextColor="rgba(255,255,255,0.7)"
+            value={searchValue}
+            onChangeText={onSearchChange}
+          />
+          {searchValue.length > 0 && (
+            <TouchableOpacity onPress={() => onSearchChange('')}>
+              <Ionicons name="close-circle" size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Search Filter Tags */}
+      {onFilterSelect && (
+        <View style={styles.filterRow}>
+          {FILTER_TAGS.map((tag) => {
+            const isActive = activeFilter === tag;
+            return (
+              <TouchableOpacity
+                key={tag}
+                style={[styles.filterChip, isActive && styles.filterChipActive]}
+                onPress={() => onFilterSelect(tag)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                  {tag}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+  },
+  topRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.background.primary,
+    marginBottom: spacing.md,
   },
-  logoSection: {
+  brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    gap: spacing.sm,
   },
-  logoIcon: {
+  logoImage: {
     width: 36,
     height: 36,
-    borderRadius: 10,
-    backgroundColor: colors.primary.tealSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm,
+    borderRadius: 8,
   },
-  brandTitle: {
-    ...typography.h2,
-    color: colors.text.primary,
+  brandText: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
   },
-  brandAccent: {
-    color: colors.primary.teal,
+  brandPlus: {
+    color: '#60A5FA',
+    fontWeight: '900',
   },
-  tagline: {
-    ...typography.caption,
-    color: colors.text.secondary,
-    marginTop: -2,
-  },
-  rightSection: {
+  healthStatusRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
+    gap: 4,
+    marginTop: 1,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#34D399',
+  },
+  healthStatusText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.85)',
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  sosButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  sosText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#DC2626',
   },
   bellButton: {
-    width: 44,
-    height: 44,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
   },
-  profileButton: {
+  badgeDot: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#EF4444',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: '#2563EB',
   },
-  nameRow: {
+  badgeDotText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  greetingSection: {
+    marginBottom: spacing.md,
+  },
+  greetingTitle: {
+    ...typography.h2,
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  greetingSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 2,
+  },
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 2,
-    gap: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    height: 42,
+    gap: spacing.sm,
   },
-  profileName: {
-    ...typography.caption,
-    color: colors.text.secondary,
-    fontWeight: '500',
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#FFFFFF',
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  filterChipActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.85)',
+  },
+  filterChipTextActive: {
+    color: '#2563EB',
+    fontWeight: '700',
   },
 });

@@ -27,6 +27,95 @@ import { colors, typography, spacing, borderRadius, shadows } from '../../src/th
 import { useAuth } from '../../src/context/AuthContext';
 import { API_BASE_URL, delay } from '../../src/config/api';
 
+function renderFormattedInlineText(text: string, isUser: boolean) {
+  // Split by **bold** markers
+  const parts = text.split(/(\*\*.*?\*\*)/g);
+  return parts.map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      const boldContent = part.slice(2, -2);
+      return (
+        <Text
+          key={index}
+          style={{
+            fontWeight: '700',
+            color: isUser ? '#FFFFFF' : '#0F172A',
+          }}
+        >
+          {boldContent}
+        </Text>
+      );
+    }
+    return (
+      <Text
+        key={index}
+        style={{
+          color: isUser ? '#FFFFFF' : '#334155',
+        }}
+      >
+        {part}
+      </Text>
+    );
+  });
+}
+
+function FormattedChatMessage({ text, isUser }: { text: string; isUser: boolean }) {
+  if (isUser) {
+    return <Text style={styles.messageTextUser}>{text}</Text>;
+  }
+
+  // Clean any residual raw headers like '### ' or '## '
+  const cleanedText = text.replace(/^#+\s*/gm, '').replace(/\*\*(#+.*?)\*\*/g, '$1');
+  const lines = cleanedText.split('\n');
+
+  return (
+    <View style={styles.formattedContainer}>
+      {lines.map((line, idx) => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          return <View key={idx} style={{ height: 6 }} />;
+        }
+
+        // Check if line is a bullet item or numbered item
+        const isBullet = trimmed.startsWith('•') || trimmed.startsWith('*') || trimmed.startsWith('-');
+        const isNumber = /^\d+[\.\)]\s*/.test(trimmed);
+
+        if (isBullet || isNumber) {
+          // Remove bullet prefix
+          const content = trimmed.replace(/^[•*\-\d.\)]+\s*/, '');
+          return (
+            <View key={idx} style={styles.bulletRow}>
+              <View style={styles.bulletDot}>
+                <Ionicons name="ellipse" size={5} color={colors.primary.blue} />
+              </View>
+              <Text style={styles.bulletTextContent}>
+                {renderFormattedInlineText(content, false)}
+              </Text>
+            </View>
+          );
+        }
+
+        // Section header / Label detection
+        const isHeader = (trimmed.endsWith(':') || trimmed.startsWith('CURRENT') || trimmed.startsWith('PRESCRIBED')) && trimmed.length < 60;
+        if (isHeader) {
+          return (
+            <View key={idx} style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionHeaderText}>
+                {renderFormattedInlineText(trimmed, false)}
+              </Text>
+            </View>
+          );
+        }
+
+        return (
+          <Text key={idx} style={styles.paragraphText}>
+            {renderFormattedInlineText(trimmed, false)}
+          </Text>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function ChatScreen() {
   const { patientId } = useLocalSearchParams();
   const router = useRouter();
@@ -120,9 +209,7 @@ export default function ChatScreen() {
           </View>
         )}
         <View style={[styles.messageBubble, isUser ? styles.messageUser : styles.messageAI]}>
-          <Text style={[styles.messageText, isUser ? styles.messageTextUser : styles.messageTextAI]}>
-            {item.text}
-          </Text>
+          <FormattedChatMessage text={item.text} isUser={isUser} />
           <Text style={[styles.messageTime, isUser ? styles.messageTimeUser : styles.messageTimeAI]}>
             {item.time}
           </Text>
@@ -341,9 +428,50 @@ const styles = StyleSheet.create({
   },
   messageTextUser: {
     color: colors.neutral.white,
+    ...typography.body,
+    lineHeight: 22,
+    fontSize: 14,
   },
   messageTextAI: {
     color: colors.text.primary,
+  },
+  formattedContainer: {
+    gap: 4,
+  },
+  paragraphText: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: '#1E293B',
+  },
+  bulletRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 3,
+    marginBottom: 3,
+    paddingLeft: 2,
+  },
+  bulletDot: {
+    marginTop: 8,
+  },
+  bulletTextContent: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 21,
+    color: '#1E293B',
+  },
+  sectionHeaderRow: {
+    marginTop: 6,
+    marginBottom: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 4,
+  },
+  sectionHeaderText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.primary.blue,
+    letterSpacing: 0.2,
   },
   messageTime: {
     fontSize: 9,

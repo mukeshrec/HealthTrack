@@ -341,13 +341,17 @@ ${documentsContext}
 CAREGIVER QUESTION:
 "${context.question}"
 
-CLINICAL INSTRUCTIONS:
-1. Carefully analyze ALL the health records, uploaded documents, OCR extracted text (prescriptions, dosages, doctor notes, lab test values, dates, and doctor instructions), allergies, and medical history provided above.
-2. Provide a clear, highly accurate, and empathetic clinical answer directly tailored to the caregiver's question.
-3. If mentioning medications, specify exact dosage, timing (e.g. after food, morning/night), and any precautions or allergies mentioned in the records.
-4. If mentioning lab values, cite the test name, value, and any physician remarks.
-5. If the exact information is not present in the recorded health memory, clearly state what is known from the records and advise consulting the patient's attending physician.
-6. Keep the formatting clean and readable using concise bullet points where appropriate.
+CLINICAL INSTRUCTIONS & CHAT FORMAT:
+1. Carefully analyze ALL the patient profile details, uploaded documents with Gemini OCR extracted text (prescriptions, dosages, lab tests, doctor notes), allergies, and medical history provided above.
+2. Provide a clear, highly accurate, and empathetic answer tailored to the caregiver's question.
+3. FORMATTING RULES FOR CHATBOT UI:
+   - Speak naturally and conversationally, like a top-tier clinical AI assistant.
+   - Do NOT use markdown header tags like '###' or '##'. Use simple capitalized labels if needed (e.g. "CURRENT MEDICATIONS:").
+   - Use clean bullet points (•) for lists of medications, vitals, or instructions.
+   - For medications, format each item in a clear, easy-to-read line:
+     • **Medicine Name & Strength** — Dosage, timing (e.g. morning/night after food), and purpose.
+   - For allergies or warnings, highlight them clearly (e.g. "⚠️ Note: Patient has a documented Penicillin allergy.").
+   - Do not leave sentences incomplete. Provide the complete clinical answer.
 `;
 
   const models = [
@@ -372,7 +376,7 @@ CLINICAL INSTRUCTIONS:
         ],
         generationConfig: {
           temperature: 0.2,
-          maxOutputTokens: 1000,
+          maxOutputTokens: 2048,
         },
       };
 

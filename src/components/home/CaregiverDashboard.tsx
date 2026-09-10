@@ -138,12 +138,24 @@ export function CaregiverDashboard() {
     source?: string;
   } | null>(null);
 
-  const [customTimeInput, setCustomTimeInput] = useState('08:00 AM');
+  const [customTimeValue, setCustomTimeValue] = useState('08:00');
+  const [customTimeMeridian, setCustomTimeMeridian] = useState<'AM' | 'PM'>('AM');
   const [customSlot, setCustomSlot] = useState<'Morning' | 'Afternoon' | 'Night'>('Morning');
   const [customInstruction, setCustomInstruction] = useState('After Food');
   const [isAddingManualMed, setIsAddingManualMed] = useState(false);
+  const [isEditingExisting, setIsEditingExisting] = useState(false);
   const [manualMedName, setManualMedName] = useState('');
   const [manualMedDosage, setManualMedDosage] = useState('');
+
+  const parseTimeToParts = (rawTime: string) => {
+    if (!rawTime) return { time: '08:00', meridian: 'AM' as const };
+    const parts = rawTime.trim().split(/\s+/);
+    const timePart = parts[0] || '08:00';
+    const isPM = parts[1]?.toUpperCase() === 'PM' || rawTime.toUpperCase().includes('PM');
+    const meridianPart: 'AM' | 'PM' = isPM ? 'PM' : 'AM';
+    const cleanedTime = timePart.replace(/[^0-9:]/g, '');
+    return { time: cleanedTime || '08:00', meridian: meridianPart };
+  };
 
   const openMedicineScheduler = async (patient: any) => {
     setSelectedPatientForSchedule(patient);
@@ -151,6 +163,7 @@ export function CaregiverDashboard() {
     setIsLoadingMeds(true);
     setSelectedMedForTiming(null);
     setIsAddingManualMed(false);
+    setIsEditingExisting(false);
 
     try {
       const response = await fetch(`${API_BASE_URL}/memory/medications?patientId=${patient.id}`, {
@@ -186,7 +199,8 @@ export function CaregiverDashboard() {
 
   const handleSelectMedicineToSchedule = (med: any) => {
     const slot = med.suggestedSlot || 'Morning';
-    const time = med.suggestedTime || (slot === 'Night' ? '08:30 PM' : slot === 'Afternoon' ? '01:30 PM' : '08:00 AM');
+    const defaultTime = med.suggestedTime || (slot === 'Night' ? '08:30 PM' : slot === 'Afternoon' ? '01:30 PM' : '08:00 AM');
+    const { time, meridian } = parseTimeToParts(defaultTime);
     const instruction = med.instruction || (slot === 'Night' ? 'After Dinner' : slot === 'Afternoon' ? 'After Lunch' : 'After Breakfast');
 
     setSelectedMedForTiming({
@@ -195,27 +209,60 @@ export function CaregiverDashboard() {
       dosage: med.dosage || '1 tablet',
       instruction: instruction,
       slot: slot,
-      time: time,
+      time: defaultTime,
       source: med.source
     });
     setCustomSlot(slot);
-    setCustomTimeInput(time);
+    setCustomTimeValue(time);
+    setCustomTimeMeridian(meridian);
     setCustomInstruction(instruction);
     setIsAddingManualMed(false);
+    setIsEditingExisting(false);
+  };
+
+  const handleEditScheduledMed = (med: any) => {
+    const slot = med.slot || 'Morning';
+    const { time, meridian } = parseTimeToParts(med.time || '08:00 AM');
+    const instruction = med.instruction || 'After Food';
+
+    setSelectedMedForTiming({
+      id: med.id,
+      name: med.name,
+      dosage: med.dosage || '1 tablet',
+      instruction: instruction,
+      slot: slot,
+      time: med.time,
+      source: med.source
+    });
+    setCustomSlot(slot);
+    setCustomTimeValue(time);
+    setCustomTimeMeridian(meridian);
+    setCustomInstruction(instruction);
+    setIsAddingManualMed(false);
+    setIsEditingExisting(true);
   };
 
   const handleSlotChange = (slot: 'Morning' | 'Afternoon' | 'Night') => {
     setCustomSlot(slot);
     if (slot === 'Morning') {
-      setCustomTimeInput('08:00 AM');
+      setCustomTimeValue('08:00');
+      setCustomTimeMeridian('AM');
       setCustomInstruction('After Breakfast');
     } else if (slot === 'Afternoon') {
-      setCustomTimeInput('01:30 PM');
+      setCustomTimeValue('01:30');
+      setCustomTimeMeridian('PM');
       setCustomInstruction('After Lunch');
     } else {
-      setCustomTimeInput('08:30 PM');
+      setCustomTimeValue('08:30');
+      setCustomTimeMeridian('PM');
       setCustomInstruction('After Dinner');
     }
+  };
+
+  const handlePresetTime = (preset: string) => {
+    const { time, meridian } = parseTimeToParts(preset);
+    setCustomTimeValue(time);
+    setCustomTimeMeridian(meridian);
   };
 
   const handleConfirmTimingAndSchedule = async () => {
@@ -226,6 +273,25 @@ export function CaregiverDashboard() {
     const medId = selectedMedForTiming ? selectedMedForTiming.id : `med-${Date.now()}`;
     const medSource = selectedMedForTiming?.source || 'Prescription Schedule';
 
+    // Format the time properly with zero-padding and selected AM / PM
+    let cleanTime = customTimeValue.trim().replace(/[^0-9:]/g, '');
+    if (!cleanTime) {
+      cleanTime = '08:00';
+    } else if (!cleanTime.includes(':')) {
+      const num = parseInt(cleanTime, 10);
+      if (!isNaN(num)) {
+        cleanTime = `${String(Math.min(Math.max(num, 1), 12)).padStart(2, '0')}:00`;
+      } else {
+        cleanTime = '08:00';
+      }
+    } else {
+      const [h, m] = cleanTime.split(':');
+      const hr = Math.min(Math.max(parseInt(h || '8', 10), 1), 12);
+      const min = Math.min(Math.max(parseInt(m || '0', 10), 0), 59);
+      cleanTime = `${String(hr).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+    }
+    const formattedTime = `${cleanTime} ${customTimeMeridian}`;
+
     setIsSavingSchedule(true);
     try {
       const payload = {
@@ -233,7 +299,7 @@ export function CaregiverDashboard() {
         medicineId: medId,
         name: medName,
         dosage: medDosage,
-        time: customTimeInput.trim() || '08:00 AM',
+        time: formattedTime,
         slot: customSlot,
         instruction: customInstruction,
         source: medSource,
@@ -275,9 +341,13 @@ export function CaregiverDashboard() {
         )
       );
 
-      Alert.alert('Timing Scheduled', `${medName} scheduled for ${payload.slot} at ${payload.time}. Reminders activated.`);
+      Alert.alert(
+        isEditingExisting ? 'Schedule Updated' : 'Timing Scheduled',
+        `${medName} scheduled for ${payload.slot} at ${payload.time}. Reminders activated.`
+      );
       setSelectedMedForTiming(null);
       setIsAddingManualMed(false);
+      setIsEditingExisting(false);
       setManualMedName('');
       setManualMedDosage('');
     } catch (err) {
@@ -291,7 +361,7 @@ export function CaregiverDashboard() {
             id: medId,
             name: medName,
             dosage: medDosage,
-            time: customTimeInput.trim() || '08:00 AM',
+            time: formattedTime,
             slot: customSlot,
             instruction: customInstruction,
             source: medSource,
@@ -302,6 +372,7 @@ export function CaregiverDashboard() {
       });
       setSelectedMedForTiming(null);
       setIsAddingManualMed(false);
+      setIsEditingExisting(false);
     } finally {
       setIsSavingSchedule(false);
     }
@@ -567,16 +638,21 @@ export function CaregiverDashboard() {
                   <View style={styles.timingConfigHeader}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.timingConfigTitle}>
-                        {selectedMedForTiming ? `Fix Timing: ${selectedMedForTiming.name}` : 'Add & Schedule Medicine'}
+                        {selectedMedForTiming
+                          ? (isEditingExisting ? `Edit Timing: ${selectedMedForTiming.name}` : `Fix Timing: ${selectedMedForTiming.name}`)
+                          : 'Add & Schedule Medicine'}
                       </Text>
                       <Text style={styles.timingConfigSubtitle}>
-                        {selectedMedForTiming ? `${selectedMedForTiming.dosage} • Select Slot & Daily Time` : 'Enter medicine details and schedule'}
+                        {selectedMedForTiming
+                          ? `${selectedMedForTiming.dosage} • Select Slot & Daily Time`
+                          : 'Enter medicine details and schedule'}
                       </Text>
                     </View>
                     <TouchableOpacity
                       onPress={() => {
                         setSelectedMedForTiming(null);
                         setIsAddingManualMed(false);
+                        setIsEditingExisting(false);
                       }}
                       style={styles.closeConfigBtn}
                     >
@@ -625,29 +701,72 @@ export function CaregiverDashboard() {
                   </View>
 
                   {/* Timing Quick Presets */}
-                  <Text style={styles.configLabel}>Dose Time:</Text>
+                  <Text style={styles.configLabel}>Quick Time Presets:</Text>
                   <View style={styles.timePresetsRow}>
-                    {['07:30 AM', '08:00 AM', '01:00 PM', '01:30 PM', '08:00 PM', '08:30 PM'].map((t) => (
-                      <TouchableOpacity
-                        key={t}
-                        style={[styles.timeChip, customTimeInput === t && styles.timeChipActive]}
-                        onPress={() => setCustomTimeInput(t)}
-                      >
-                        <Text style={[styles.timeChipText, customTimeInput === t && styles.timeChipTextActive]}>
-                          {t}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                    {['07:30 AM', '08:00 AM', '01:00 PM', '01:30 PM', '08:00 PM', '08:30 PM'].map((t) => {
+                      const isSelected = `${customTimeValue} ${customTimeMeridian}` === t;
+                      return (
+                        <TouchableOpacity
+                          key={t}
+                          style={[styles.timeChip, isSelected && styles.timeChipActive]}
+                          onPress={() => handlePresetTime(t)}
+                        >
+                          <Text style={[styles.timeChipText, isSelected && styles.timeChipTextActive]}>
+                            {t}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
 
-                  {/* Exact Time Input */}
-                  <TextInput
-                    style={styles.doseInput}
-                    placeholder="Custom Time (e.g. 09:00 AM)"
-                    placeholderTextColor={colors.text.tertiary}
-                    value={customTimeInput}
-                    onChangeText={setCustomTimeInput}
-                  />
+                  {/* Manual Time Entry + AM / PM Selector */}
+                  <Text style={styles.configLabel}>Manual Time & AM / PM Selector:</Text>
+                  <View style={styles.manualTimeInputRow}>
+                    <View style={styles.timeInputBox}>
+                      <Ionicons name="time-outline" size={16} color={colors.primary.blue} style={{ marginRight: 6 }} />
+                      <TextInput
+                        style={styles.timeTextInput}
+                        placeholder="08:00"
+                        placeholderTextColor={colors.text.tertiary}
+                        value={customTimeValue}
+                        onChangeText={(text) => {
+                          const cleaned = text.replace(/am|pm/gi, '').trim();
+                          setCustomTimeValue(cleaned);
+                        }}
+                        keyboardType="numbers-and-punctuation"
+                      />
+                    </View>
+
+                    <View style={styles.meridianToggleContainer}>
+                      <TouchableOpacity
+                        style={[
+                          styles.meridianBtn,
+                          customTimeMeridian === 'AM' && styles.meridianBtnActive
+                        ]}
+                        onPress={() => setCustomTimeMeridian('AM')}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[
+                          styles.meridianBtnText,
+                          customTimeMeridian === 'AM' && styles.meridianBtnTextActive
+                        ]}>AM</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.meridianBtn,
+                          customTimeMeridian === 'PM' && styles.meridianBtnActive
+                        ]}
+                        onPress={() => setCustomTimeMeridian('PM')}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[
+                          styles.meridianBtnText,
+                          customTimeMeridian === 'PM' && styles.meridianBtnTextActive
+                        ]}>PM</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
 
                   {/* Meal Instruction Selector */}
                   <Text style={styles.configLabel}>Meal Relation:</Text>
@@ -672,6 +791,7 @@ export function CaregiverDashboard() {
                       onPress={() => {
                         setSelectedMedForTiming(null);
                         setIsAddingManualMed(false);
+                        setIsEditingExisting(false);
                       }}
                     >
                       <Text style={styles.cancelFormText}>Cancel</Text>
@@ -685,7 +805,9 @@ export function CaregiverDashboard() {
                       {isSavingSchedule ? (
                         <ActivityIndicator size="small" color="#FFFFFF" />
                       ) : (
-                        <Text style={styles.saveDoseText}>Confirm & Schedule Timing</Text>
+                        <Text style={styles.saveDoseText}>
+                          {isEditingExisting ? 'Save Edited Timing' : 'Confirm & Schedule Timing'}
+                        </Text>
                       )}
                     </TouchableOpacity>
                   </View>
@@ -696,7 +818,10 @@ export function CaregiverDashboard() {
               {!selectedMedForTiming && !isAddingManualMed && (
                 <TouchableOpacity
                   style={styles.addDoseToggleBtn}
-                  onPress={() => setIsAddingManualMed(true)}
+                  onPress={() => {
+                    setIsAddingManualMed(true);
+                    setIsEditingExisting(false);
+                  }}
                   activeOpacity={0.8}
                 >
                   <Ionicons name="add-circle-outline" size={16} color={colors.primary.blue} />
@@ -775,6 +900,15 @@ export function CaregiverDashboard() {
                           </View>
                         )}
                       </View>
+
+                      {/* Edit Schedule Button */}
+                      <TouchableOpacity
+                        style={styles.editMedBtn}
+                        onPress={() => handleEditScheduledMed(med)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="pencil-outline" size={15} color="#7C3AED" />
+                      </TouchableOpacity>
 
                       <TouchableOpacity
                         style={styles.remindBtn}
@@ -1562,6 +1696,64 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.text.secondary,
     marginTop: 1,
+  },
+  manualTimeInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  timeInputBox: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.sm,
+    height: 38,
+  },
+  timeTextInput: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text.primary,
+    padding: 0,
+  },
+  meridianToggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#EDE9FE',
+    borderRadius: borderRadius.sm,
+    padding: 2,
+  },
+  meridianBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: borderRadius.sm - 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  meridianBtnActive: {
+    backgroundColor: '#7C3AED',
+    ...shadows.soft,
+  },
+  meridianBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6D28D9',
+  },
+  meridianBtnTextActive: {
+    color: '#FFFFFF',
+  },
+  editMedBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F5F3FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
   },
   remindBtn: {
     width: 32,

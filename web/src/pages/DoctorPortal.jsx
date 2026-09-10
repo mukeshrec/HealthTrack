@@ -76,129 +76,159 @@ export function DoctorPortal() {
     <DashboardLayout>
       <div className="max-w-[1600px] mx-auto space-y-7 pb-12">
         
-        {/* Top Search & CivicConnect-style Hero Greeting Banner */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-          {/* Patient Lookup Card */}
-          <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Search size={16} className="text-blue-600" />
-                <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">
-                  Patient Aadhar / Health ID Lookup
-                </label>
-              </div>
-              <p className="text-xs text-slate-500 font-medium mb-4">
-                Retrieve consent-verified longitudinal health records.
-              </p>
-            </div>
+        {/* 1. Unified Panoramic Clinical Hero Banner (CivicConnect / Hospital Enterprise Style) */}
+        <div className="bg-gradient-to-br from-blue-50/90 via-sky-50/60 to-indigo-50/80 rounded-3xl border border-blue-100/80 p-7 shadow-xs relative overflow-hidden">
+          {/* Subtle Aesthetic Blur Accents */}
+          <div className="absolute top-0 right-0 -mr-12 -mt-12 w-64 h-64 bg-blue-200/40 rounded-full blur-3xl pointer-events-none"></div>
+          <div className="absolute bottom-0 left-1/4 w-48 h-48 bg-teal-200/30 rounded-full blur-2xl pointer-events-none"></div>
 
-            <form onSubmit={handleSearch} className="flex flex-col gap-3">
-              <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200/80 rounded-2xl px-3.5 py-2.5 focus-within:border-blue-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all">
-                <input 
-                  type="text" 
-                  value={hidInput}
-                  onChange={(e) => setHidInput(e.target.value)}
-                  className="bg-transparent border-none outline-none text-slate-800 font-bold text-xs flex-1 placeholder:text-slate-400"
-                  placeholder="e.g. 1234 5678 9012"
-                />
+          <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+            <div className="flex-1 max-w-3xl">
+              {/* Status Tags */}
+              <div className="flex flex-wrap items-center gap-2.5 mb-3">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/90 backdrop-blur-md rounded-full border border-blue-200/70 text-blue-800 text-[11px] font-extrabold shadow-2xs">
+                  <Sparkles size={13} className="text-blue-600" />
+                  <span>Geriatric Clinical Copilot Active</span>
+                </span>
+
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50/90 backdrop-blur-md rounded-full border border-emerald-200/70 text-emerald-800 text-[11px] font-extrabold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>HIPAA Verified & Encrypted</span>
+                </span>
               </div>
 
-              <button 
-                type="submit"
-                disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold py-3 px-6 rounded-2xl transition-all shadow-xs shadow-blue-600/20 disabled:opacity-50 text-xs flex items-center justify-center gap-2"
-              >
-                <Search size={14} />
-                <span>{loading ? 'Retrieving Records...' : 'View Patient Profile'}</span>
-              </button>
-            </form>
-          </div>
-
-          {/* Hero Greeting Banner (Reference 1 CivicConnect Banner Style) */}
-          <div className="lg:col-span-8 bg-gradient-to-br from-blue-50 via-cyan-50/60 to-indigo-50/70 rounded-3xl border border-blue-100 p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative overflow-hidden">
-            {/* Background Aesthetic Blur Shapes */}
-            <div className="absolute top-0 right-0 -mr-8 -mt-8 w-44 h-44 bg-blue-200/40 rounded-full blur-2xl pointer-events-none"></div>
-            <div className="absolute bottom-0 left-1/3 w-36 h-36 bg-teal-200/30 rounded-full blur-xl pointer-events-none"></div>
-
-            <div className="relative z-10 max-w-xl">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/80 backdrop-blur-md rounded-full border border-blue-200 text-blue-800 text-[11px] font-extrabold mb-3 shadow-2xs">
-                <Sparkles size={12} className="text-blue-600" />
-                <span>Geriatric Clinical Copilot Active</span>
-              </div>
-
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-snug">
+              {/* Greeting */}
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-tight">
                 Good Morning, Dr. Arjun! ✨
               </h2>
-              <p className="text-xs text-slate-600 font-medium mt-1 leading-relaxed">
-                Reviewing longitudinal care trajectory for <span className="font-bold text-slate-900">{patientData?.user?.name || 'Lakshmi Narayanan'}</span> (78 yrs). 3 high-priority multi-agent risk flags require review.
+              <p className="text-xs sm:text-sm text-slate-600 font-medium mt-1 leading-relaxed">
+                Currently reviewing longitudinal geriatric care for{' '}
+                <span className="font-extrabold text-blue-900 bg-blue-100/70 px-2 py-0.5 rounded-md border border-blue-200/60">
+                  {patientData?.user?.name || 'Lakshmi Narayanan'} (78 yrs · {patientData?.gender || 'Female'})
+                </span>
+                . 3 high-priority multi-agent risk flags detected across prescriptions & logs.
               </p>
 
-              <div className="flex flex-wrap items-center gap-3 mt-4 text-xs font-bold text-slate-600">
-                <span className="flex items-center gap-1 bg-white/70 px-2.5 py-1 rounded-xl border border-slate-200/60">
-                  <MapPin size={12} className="text-blue-600" /> Chennai Central Ward
-                </span>
-                <span className="flex items-center gap-1 bg-white/70 px-2.5 py-1 rounded-xl border border-slate-200/60">
-                  <Users size={12} className="text-teal-600" /> 1,254 Monitored Patients
-                </span>
+              {/* Integrated Patient Aadhar Lookup Bar */}
+              <form onSubmit={handleSearch} className="mt-5 flex flex-wrap sm:flex-nowrap items-center gap-2.5 max-w-2xl">
+                <div className="flex-1 flex items-center gap-2.5 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl px-4 py-2.5 shadow-xs focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                  <Search size={16} className="text-blue-600 shrink-0" />
+                  <div className="flex-1 flex flex-col justify-center">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Patient Aadhar / Health ID</span>
+                    <input 
+                      type="text" 
+                      value={hidInput}
+                      onChange={(e) => setHidInput(e.target.value)}
+                      className="bg-transparent border-none outline-none text-slate-900 font-extrabold text-xs placeholder:text-slate-400 placeholder:font-normal"
+                      placeholder="e.g. 1234 5678 9012"
+                    />
+                  </div>
+                </div>
+
+                <button 
+                  type="submit"
+                  disabled={loading}
+                  className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-extrabold py-3.5 px-6 rounded-2xl transition-all shadow-sm shadow-blue-600/30 text-xs flex items-center gap-2 shrink-0 disabled:opacity-50"
+                >
+                  <Search size={14} />
+                  <span>{loading ? 'Retrieving...' : 'View Patient Profile'}</span>
+                </button>
+              </form>
+
+              {/* Quick Patient Switch Chips */}
+              <div className="flex items-center gap-2 mt-2.5 text-[11px] text-slate-500 font-medium">
+                <span className="text-[10px] uppercase font-bold text-slate-400">Quick Switch:</span>
+                <button 
+                  onClick={() => { setHidInput('1234 5678 9012'); handleSearch(); }}
+                  className="px-2.5 py-0.5 rounded-lg bg-white/70 hover:bg-white text-slate-700 font-bold border border-slate-200/60 transition-colors"
+                >
+                  Lakshmi N (HT-89321)
+                </button>
+                <button 
+                  onClick={() => { setHidInput('9876 5432 1098'); handleSearch(); }}
+                  className="px-2.5 py-0.5 rounded-lg bg-white/70 hover:bg-white text-slate-700 font-bold border border-slate-200/60 transition-colors"
+                >
+                  Mukesh V (HT-4109)
+                </button>
               </div>
             </div>
 
-            {/* Quick Action in Banner */}
-            <div className="relative z-10 shrink-0">
+            {/* Right Stat Summary Widget (CivicConnect style) */}
+            <div className="w-full lg:w-72 bg-white/90 backdrop-blur-md rounded-2xl border border-blue-100 p-4 shadow-2xs flex flex-col justify-between shrink-0">
+              <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Clinical Ward</span>
+                <span className="text-xs font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md">Chennai Central</span>
+              </div>
+
+              <div className="space-y-2 mb-4 text-xs font-semibold text-slate-700">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500">Monitored Patients:</span>
+                  <span className="font-extrabold text-slate-900">1,254 Active</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500">Avg Med Adherence:</span>
+                  <span className="font-extrabold text-emerald-600">78% Today</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500">Active Risk Alerts:</span>
+                  <span className="font-extrabold text-red-600">3 Priority Flags</span>
+                </div>
+              </div>
+
               <button 
                 onClick={() => alert('Geriatric AI Multi-Agent Synthesizer running across 5-year history.')}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold px-5 py-3 rounded-2xl shadow-sm shadow-blue-600/30 transition-all active:scale-95 flex items-center gap-2"
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-extrabold py-2.5 rounded-xl shadow-xs shadow-blue-600/20 transition-all flex items-center justify-center gap-1.5"
               >
-                <Sparkles size={14} />
+                <Sparkles size={13} />
                 <span>Run AI Synthesis</span>
               </button>
             </div>
           </div>
         </div>
 
-        {/* KPI Metrics Row (Reference 1 CivicConnect Style 4-Cards Grid) */}
+        {/* 2. KPI Metrics Row (CivicConnect 4-Card Grid) */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center text-red-600 shrink-0">
-              <ShieldAlert size={22} />
+          <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center gap-3.5 hover:shadow-2xs transition-shadow">
+            <div className="w-11 h-11 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center text-red-600 shrink-0">
+              <ShieldAlert size={20} />
             </div>
             <div>
-              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Active AI Risks</span>
-              <span className="text-xl font-black text-slate-900 leading-tight">3 Flags</span>
-              <span className="text-[11px] font-bold text-red-600 block mt-0.5">1 Critical · 2 Moderate</span>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Active AI Risks</span>
+              <span className="text-lg sm:text-xl font-black text-slate-900 leading-tight">3 Flags</span>
+              <span className="text-[10px] font-bold text-red-600 block mt-0.5">1 Critical · 2 Moderate</span>
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
-              <CheckCircle2 size={22} />
+          <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center gap-3.5 hover:shadow-2xs transition-shadow">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+              <CheckCircle2 size={20} />
             </div>
             <div>
-              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Med Adherence</span>
-              <span className="text-xl font-black text-slate-900 leading-tight">78%</span>
-              <span className="text-[11px] font-bold text-emerald-600 block mt-0.5">+8% from last month</span>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Med Adherence</span>
+              <span className="text-lg sm:text-xl font-black text-slate-900 leading-tight">78%</span>
+              <span className="text-[10px] font-bold text-emerald-600 block mt-0.5">+8% vs last month</span>
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shrink-0">
-              <FileText size={22} />
+          <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center gap-3.5 hover:shadow-2xs transition-shadow">
+            <div className="w-11 h-11 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+              <FileText size={20} />
             </div>
             <div>
-              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Extracted Records</span>
-              <span className="text-xl font-black text-slate-900 leading-tight">18 Records</span>
-              <span className="text-[11px] font-bold text-blue-600 block mt-0.5">100% OCR Digitized</span>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Extracted Records</span>
+              <span className="text-lg sm:text-xl font-black text-slate-900 leading-tight">18 Records</span>
+              <span className="text-[10px] font-bold text-blue-600 block mt-0.5">100% OCR Digitized</span>
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600 shrink-0">
-              <Clock size={22} />
+          <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center gap-3.5 hover:shadow-2xs transition-shadow">
+            <div className="w-11 h-11 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600 shrink-0">
+              <Clock size={20} />
             </div>
             <div>
-              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider block">Longitudinal Span</span>
-              <span className="text-xl font-black text-slate-900 leading-tight">5 Years</span>
-              <span className="text-[11px] font-bold text-purple-600 block mt-0.5">2022 – 2026 Trajectory</span>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Longitudinal Span</span>
+              <span className="text-lg sm:text-xl font-black text-slate-900 leading-tight">5 Years</span>
+              <span className="text-[10px] font-bold text-purple-600 block mt-0.5">2022 – 2026 Trajectory</span>
             </div>
           </div>
         </div>

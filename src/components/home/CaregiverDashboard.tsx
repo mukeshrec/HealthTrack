@@ -25,6 +25,7 @@ import { colors, typography, spacing, borderRadius, shadows } from '../../theme'
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../common/Button';
 import { Avatar } from '../common';
+import { API_BASE_URL, delay } from '../../config/api';
 
 export function CaregiverDashboard() {
   const { token, user, signOut } = useAuth();
@@ -46,7 +47,8 @@ export function CaregiverDashboard() {
 
   const fetchPatients = async () => {
     try {
-      const response = await fetch('http://172.17.99.224:3000/api/connections/patients', {
+      await delay(1200);
+      const response = await fetch(`${API_BASE_URL}/connections/patients`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -70,7 +72,8 @@ export function CaregiverDashboard() {
     if (!healthIdInput.trim()) return;
     setIsRequesting(true);
     try {
-      const response = await fetch('http://172.17.99.224:3000/api/connections/request', {
+      await delay(1200);
+      const response = await fetch(`${API_BASE_URL}/connections/request`, {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${token}`,

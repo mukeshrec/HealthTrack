@@ -1,12 +1,13 @@
 /**
- * Health Memory Screen — Longitudinal Health Record & Timeline
+ * Health Memory Screen — Longitudinal Health Record, Documents & Dynamic Gemini OCR
  *
- * Professional clinical timeline with:
- * - Live Vitals Tracker (BP, Blood Sugar, Pulse, SpO2)
- * - Category filter pills (All, Prescriptions, Lab Reports, Diagnoses, Notes)
- * - Chronological medical history cards with AI Extraction provenance
- * - Direct Upload Document CTA linking to /upload
- * - Interactive detail modal
+ * 100% Dynamic user documents driven:
+ * - Direct connection to database via API_BASE_URL
+ * - Real-time extracted prescriptions & lab reports from Gemini Vision AI
+ * - 1.5s clinical delay gap on interactions
+ * - Delete individual records & Clear all records actions
+ * - Live search across title, medication name, and raw transcribed text
+ * - Interactive detail modal with complete extracted text & 1-tap copy
  */
 
 import React, { useState, useCallback } from 'react';
@@ -19,90 +20,35 @@ import {
   Modal,
   RefreshControl,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { colors, typography, spacing, borderRadius, shadows } from '../../src/theme';
-import { Button, SearchBar } from '../../src/components/common';
+import { SearchBar } from '../../src/components/common';
 import { useAuth } from '../../src/context/AuthContext';
+import { API_BASE_URL, delay } from '../../src/config/api';
 
-interface HealthRecord {
+export interface HealthRecord {
   id: string;
+  documentId?: string;
   title: string;
   category: 'Prescription' | 'Lab Report' | 'Diagnosis' | 'Clinical Note' | 'Vaccine';
   doctor: string;
   facility: string;
   date: string;
   summary: string;
+  extractedText?: string;
   status: 'Normal' | 'Follow-up Required' | 'Active' | 'Completed';
   provenance?: 'AI_EXTRACTED' | 'MANUAL';
   sourceDocumentId?: string;
+  fileUrl?: string;
+  fileName?: string;
   metrics?: { label: string; value: string }[];
 }
-
-const mockRecords: HealthRecord[] = [
-  {
-    id: 'rec-001',
-    title: 'Comprehensive Metabolic Panel (CMP)',
-    category: 'Lab Report',
-    doctor: 'Dr. Ramesh Kumar, MD',
-    facility: 'Apollo Diagnostics Laboratory',
-    date: 'Oct 12, 2024',
-    summary: 'Blood glucose, electrolyte balance, and renal parameters within reference range. Fasting glucose stable at 98 mg/dL.',
-    status: 'Normal',
-    provenance: 'AI_EXTRACTED',
-    metrics: [
-      { label: 'Fasting Glucose', value: '98 mg/dL' },
-      { label: 'HbA1c', value: '5.6%' },
-      { label: 'Serum Creatinine', value: '0.9 mg/dL' },
-      { label: 'eGFR', value: '>90 mL/min' },
-    ],
-  },
-  {
-    id: 'rec-002',
-    title: 'Hypertension Management Prescription',
-    category: 'Prescription',
-    doctor: 'Dr. Priya Nair, DM',
-    facility: 'Care Cardiology Clinic',
-    date: 'Oct 05, 2024',
-    summary: 'Prescribed Amlodipine Besylate 5mg once daily post-breakfast. Review blood pressure log after 30 days.',
-    status: 'Active',
-    provenance: 'AI_EXTRACTED',
-    metrics: [
-      { label: 'Dosage', value: '5 mg OD' },
-      { label: 'Duration', value: '90 Days' },
-    ],
-  },
-  {
-    id: 'rec-003',
-    title: '12-Lead Electrocardiogram (ECG) Report',
-    category: 'Diagnosis',
-    doctor: 'Dr. Mason Lee, MD',
-    facility: 'Metro Heart Institute',
-    date: 'Sep 22, 2024',
-    summary: 'Normal sinus rhythm, resting heart rate 72 bpm. No ST-segment deviations or ischemic indicators.',
-    status: 'Normal',
-    provenance: 'AI_EXTRACTED',
-    metrics: [
-      { label: 'Resting HR', value: '72 bpm' },
-      { label: 'PR Interval', value: '160 ms' },
-      { label: 'QRS Duration', value: '88 ms' },
-    ],
-  },
-  {
-    id: 'rec-004',
-    title: 'Annual Influenza & Pneumococcal Booster',
-    category: 'Vaccine',
-    doctor: 'Dr. Ramesh Kumar, MD',
-    facility: 'City Health Clinic',
-    date: 'Aug 14, 2024',
-    summary: 'Quadrivalent flu vaccine administered intramuscularly. No adverse reaction observed post 15-minute observation.',
-    status: 'Completed',
-    provenance: 'MANUAL',
-  },
-];
 
 const categories = ['All', 'Prescription', 'Lab Report', 'Diagnosis', 'Vaccine'] as const;
 
@@ -113,35 +59,49 @@ export default function HealthMemoryScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<HealthRecord | null>(null);
-  const [records, setRecords] = useState<HealthRecord[]>(mockRecords);
-  const [isLoading, setIsLoading] = useState(false);
+  const [records, setRecords] = useState<HealthRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchTimeline = async () => {
+  const fetchTimelineAndDocs = async () => {
+    setIsLoading(true);
     try {
-      const response = await fetch('http://172.17.99.224:3000/api/memory/timeline', {
+      // 1.5s delay gap for smooth UI update
+      await delay(1200);
+
+      // Fetch Uploaded Documents with full extracted text from Gemini
+      const docsRes = await fetch(`${API_BASE_URL}/memory/documents`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (response.ok) {
-        const data = await response.json();
-        if (data && data.length > 0) {
-          const mapped = data.map((item: any) => ({
-            id: item.id || String(Date.now()),
-            title: item.title,
-            category: item.eventType || 'Lab Report',
-            doctor: 'Dr. Ramesh Kumar, MD',
-            facility: 'Apollo Health Center',
-            date: new Date(item.eventDate || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-            summary: item.description || 'Scanned health document.',
-            status: item.isFuture ? 'Follow-up Required' : 'Normal',
-            provenance: item.provenance || 'AI_EXTRACTED',
-            sourceDocumentId: item.sourceDocumentId,
+
+      let fetchedRecords: HealthRecord[] = [];
+
+      if (docsRes.ok) {
+        const docsData = await docsRes.json();
+        if (Array.isArray(docsData) && docsData.length > 0) {
+          const docRecords: HealthRecord[] = docsData.map((d: any) => ({
+            id: `doc-${d.id}`,
+            documentId: d.id,
+            title: d.fileName || d.description || 'Uploaded Medical Record',
+            category: d.fileType?.includes('pdf') ? 'Lab Report' : 'Prescription',
+            doctor: 'Attending Physician',
+            facility: 'Medical Document',
+            date: new Date(d.uploadDate || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            summary: d.summary || 'Document transcribed with Gemini AI Vision.',
+            extractedText: d.extractedText || '',
+            status: d.status === 'EXTRACTED' ? 'Normal' : 'Active',
+            provenance: 'AI_EXTRACTED',
+            fileUrl: d.fileUrl,
+            fileName: d.fileName,
           }));
-          setRecords([...mapped, ...mockRecords]);
+          fetchedRecords = [...docRecords];
         }
       }
+
+      setRecords(fetchedRecords);
     } catch (error) {
-      console.warn('Using clinical mock timeline for demo');
+      console.warn('Network notice: Could not fetch from backend:', error);
+      setRecords([]);
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -150,13 +110,80 @@ export default function HealthMemoryScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchTimeline();
+      fetchTimelineAndDocs();
     }, [token])
   );
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    fetchTimeline();
+    await fetchTimelineAndDocs();
+  };
+
+  const handleCopyText = async (text?: string) => {
+    if (!text) return;
+    await Clipboard.setStringAsync(text);
+    Alert.alert('Extracted Text Copied', 'The complete transcribed text has been copied to your clipboard.');
+  };
+
+  const handleDeleteRecord = (record: HealthRecord) => {
+    Alert.alert(
+      'Delete Medical Record',
+      `Are you sure you want to delete "${record.title}" from your health memory?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            // Remove from local state immediately
+            setRecords((prev) => prev.filter((r) => r.id !== record.id));
+            if (selectedRecord?.id === record.id) setSelectedRecord(null);
+
+            // Delete from backend with 1.5s delay gap
+            if (record.documentId) {
+              try {
+                await delay(1000);
+                await fetch(`${API_BASE_URL}/memory/documents/${record.documentId}`, {
+                  method: 'DELETE',
+                  headers: { 'Authorization': `Bearer ${token}` }
+                });
+              } catch (e) {
+                console.warn('Backend delete error:', e);
+              }
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleClearAllRecords = () => {
+    if (records.length === 0) return;
+
+    Alert.alert(
+      'Clear All Records',
+      'Are you sure you want to remove all extracted medical records from your Health Memory?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear All',
+          style: 'destructive',
+          onPress: async () => {
+            setRecords([]);
+            setSelectedRecord(null);
+            try {
+              await delay(1200);
+              await fetch(`${API_BASE_URL}/memory/clear-all`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+            } catch (e) {
+              console.warn('Backend clear all error:', e);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const filteredRecords = records.filter((rec) => {
@@ -164,7 +191,9 @@ export default function HealthMemoryScreen() {
     const matchesSearch =
       rec.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       rec.doctor.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      rec.facility.toLowerCase().includes(searchQuery.toLowerCase());
+      rec.facility.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (rec.extractedText && rec.extractedText.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      rec.summary.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
@@ -195,14 +224,14 @@ export default function HealthMemoryScreen() {
         <LinearGradient
           colors={['#2563EB', '#1D4ED8', '#1E3A8A']}
           start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
+          end={{ x: 0.2, y: 1 }}
           style={[styles.headerGradient, { paddingTop: Math.max(insets.top, 16) }]}
         >
           <View style={styles.headerRow}>
             <View>
               <Text style={styles.headerTitle}>Health Memory</Text>
               <Text style={styles.headerSubtitle}>
-                Longitudinal Medical Records & AI Timeline
+                Longitudinal Medical Records & Gemini OCR
               </Text>
             </View>
 
@@ -211,14 +240,14 @@ export default function HealthMemoryScreen() {
               onPress={() => router.push('/upload')}
               activeOpacity={0.8}
             >
-              <Ionicons name="cloud-upload" size={18} color={colors.neutral.white} />
+              <Ionicons name="cloud-upload" size={18} color="#FFFFFF" />
               <Text style={styles.addRecordText}>Upload</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.searchContainer}>
             <SearchBar
-              placeholder="Search lab reports, prescriptions, tests..."
+              placeholder="Search extracted text, medications, labs..."
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
@@ -226,79 +255,22 @@ export default function HealthMemoryScreen() {
         </LinearGradient>
 
         <View style={styles.contentBody}>
-          {/* Current Vitals Snapshot */}
-          <Text style={styles.sectionHeading}>Current Vitals</Text>
-          <View style={styles.vitalsGrid}>
-            <View style={styles.vitalCard}>
-              <View style={[styles.vitalIconBox, { backgroundColor: '#FEF2F2' }]}>
-                <Ionicons name="heart" size={18} color="#DC2626" />
-              </View>
-              <Text style={styles.vitalValue}>120/80</Text>
-              <Text style={styles.vitalLabel}>Blood Pressure (mmHg)</Text>
-              <View style={styles.vitalStatusPill}>
-                <Text style={styles.vitalStatusText}>Optimal</Text>
-              </View>
-            </View>
-
-            <View style={styles.vitalCard}>
-              <View style={[styles.vitalIconBox, { backgroundColor: '#EFF6FF' }]}>
-                <Ionicons name="water" size={18} color="#2563EB" />
-              </View>
-              <Text style={styles.vitalValue}>98</Text>
-              <Text style={styles.vitalLabel}>Fasting Glucose (mg/dL)</Text>
-              <View style={styles.vitalStatusPill}>
-                <Text style={styles.vitalStatusText}>Normal</Text>
-              </View>
-            </View>
-
-            <View style={styles.vitalCard}>
-              <View style={[styles.vitalIconBox, { backgroundColor: '#ECFDF5' }]}>
-                <Ionicons name="pulse" size={18} color="#059669" />
-              </View>
-              <Text style={styles.vitalValue}>72</Text>
-              <Text style={styles.vitalLabel}>Heart Rate (BPM)</Text>
-              <View style={styles.vitalStatusPill}>
-                <Text style={styles.vitalStatusText}>Resting</Text>
-              </View>
-            </View>
-
-            <View style={styles.vitalCard}>
-              <View style={[styles.vitalIconBox, { backgroundColor: '#F5F3FF' }]}>
-                <Ionicons name="speedometer" size={18} color="#7C3AED" />
-              </View>
-              <Text style={styles.vitalValue}>98%</Text>
-              <Text style={styles.vitalLabel}>SpO2 Oxygen</Text>
-              <View style={styles.vitalStatusPill}>
-                <Text style={styles.vitalStatusText}>Excellent</Text>
-              </View>
-            </View>
-          </View>
-
           {/* Category Filter Pills */}
-          <Text style={styles.sectionHeading}>Longitudinal Records</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoriesScroll}
+            contentContainerStyle={styles.categoryScroll}
           >
             {categories.map((cat) => {
               const isSelected = selectedCategory === cat;
               return (
                 <TouchableOpacity
                   key={cat}
-                  style={[
-                    styles.categoryPill,
-                    isSelected && styles.categoryPillSelected,
-                  ]}
+                  style={[styles.categoryChip, isSelected && styles.categoryChipActive]}
                   onPress={() => setSelectedCategory(cat)}
-                  activeOpacity={0.8}
+                  activeOpacity={0.7}
                 >
-                  <Text
-                    style={[
-                      styles.categoryText,
-                      isSelected && styles.categoryTextSelected,
-                    ]}
-                  >
+                  <Text style={[styles.categoryText, isSelected && styles.categoryTextActive]}>
                     {cat}
                   </Text>
                 </TouchableOpacity>
@@ -306,163 +278,263 @@ export default function HealthMemoryScreen() {
             })}
           </ScrollView>
 
-          {/* Timeline Records */}
-          <View style={styles.timelineList}>
-            {filteredRecords.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Ionicons name="document-text-outline" size={48} color={colors.neutral.gray300} />
-                <Text style={styles.emptyTitle}>No records found</Text>
-                <Text style={styles.emptySubtitle}>Upload a prescription or lab report to add to your health memory.</Text>
-                <Button 
-                  title="Upload First Document" 
-                  onPress={() => router.push('/upload')} 
-                  style={{ marginTop: spacing.md }} 
-                />
+          {/* Section Header with Record Count & Clear Action */}
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionTitleRow}>
+              <Ionicons name="documents-outline" size={18} color={colors.primary.blue} />
+              <Text style={styles.sectionTitle}>
+                {selectedCategory === 'All' ? 'Extracted Health Records' : `${selectedCategory}s`}
+              </Text>
+            </View>
+
+            <View style={styles.headerRightControls}>
+              <Text style={styles.recordsCount}>{filteredRecords.length} records</Text>
+              {records.length > 0 && (
+                <TouchableOpacity
+                  style={styles.clearAllBtn}
+                  onPress={handleClearAllRecords}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="trash-outline" size={14} color="#DC2626" />
+                  <Text style={styles.clearAllText}>Clear All</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {/* Loading State */}
+          {isLoading && records.length === 0 ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={colors.primary.blue} />
+              <Text style={styles.loadingText}>Fetching documents from database...</Text>
+            </View>
+          ) : filteredRecords.length === 0 ? (
+            /* Empty State - Clean */
+            <View style={styles.emptyStateCard}>
+              <View style={styles.emptyIconBox}>
+                <Ionicons name="document-text-outline" size={36} color={colors.primary.blue} />
               </View>
-            ) : (
-              filteredRecords.map((record) => {
+              <Text style={styles.emptyTitle}>No Extracted Records Found</Text>
+              <Text style={styles.emptySubtitle}>
+                Take a photo or upload a prescription or lab report. Gemini AI will extract all text and save it to your database.
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyUploadBtn}
+                onPress={() => router.push('/upload')}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="cloud-upload-outline" size={18} color="#FFFFFF" />
+                <Text style={styles.emptyUploadBtnText}>Upload & Extract Record</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            /* 100% Dynamic Real Documents List */
+            <View style={styles.recordsList}>
+              {filteredRecords.map((record) => {
                 const catConfig = getCategoryColor(record.category);
-                const isAi = record.provenance === 'AI_EXTRACTED';
+                const hasExtractedText = Boolean(record.extractedText && record.extractedText.trim().length > 0);
 
                 return (
                   <TouchableOpacity
                     key={record.id}
                     style={styles.recordCard}
                     onPress={() => setSelectedRecord(record)}
-                    activeOpacity={0.85}
+                    activeOpacity={0.8}
                   >
-                    <View style={styles.recordHeaderRow}>
-                      <View style={[styles.categoryTag, { backgroundColor: catConfig.bg }]}>
-                        <Ionicons name={catConfig.icon} size={13} color={catConfig.text} />
-                        <Text style={[styles.categoryTagText, { color: catConfig.text }]}>
-                          {record.category}
-                        </Text>
-                      </View>
+                    {/* Card Header */}
+                    <View style={styles.cardHeader}>
+                      <View style={styles.cardHeaderLeft}>
+                        <View style={[styles.categoryBadge, { backgroundColor: catConfig.bg }]}>
+                          <Ionicons name={catConfig.icon} size={14} color={catConfig.text} />
+                          <Text style={[styles.categoryBadgeText, { color: catConfig.text }]}>
+                            {record.category}
+                          </Text>
+                        </View>
 
-                      <View style={styles.headerRight}>
-                        {isAi && (
-                          <View style={styles.aiBadge}>
-                            <Ionicons name="sparkles" size={11} color={colors.primary.blue} />
-                            <Text style={styles.aiBadgeText}>AI Parsed</Text>
+                        {record.provenance === 'AI_EXTRACTED' && (
+                          <View style={styles.aiPill}>
+                            <Ionicons name="sparkles" size={12} color="#2563EB" />
+                            <Text style={styles.aiPillText}>Gemini OCR</Text>
                           </View>
                         )}
+                      </View>
+
+                      <View style={styles.cardHeaderRight}>
                         <Text style={styles.recordDate}>{record.date}</Text>
+                        <TouchableOpacity
+                          style={styles.deleteCardBtn}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            handleDeleteRecord(record);
+                          }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                        </TouchableOpacity>
                       </View>
                     </View>
 
+                    {/* Title & Facility */}
                     <Text style={styles.recordTitle}>{record.title}</Text>
-
                     <View style={styles.doctorFacilityRow}>
-                      <Ionicons name="person-outline" size={13} color={colors.primary.blue} />
-                      <Text style={styles.doctorNameText}>{record.doctor}</Text>
-                      <Text style={styles.bulletDot}>•</Text>
+                      <Ionicons name="person-outline" size={13} color={colors.text.tertiary} />
+                      <Text style={styles.doctorText}>{record.doctor}</Text>
+                      <Text style={styles.dot}>•</Text>
+                      <Ionicons name="business-outline" size={13} color={colors.text.tertiary} />
                       <Text style={styles.facilityText}>{record.facility}</Text>
                     </View>
 
-                    <Text style={styles.recordSummary} numberOfLines={2}>
-                      {record.summary}
-                    </Text>
+                    {/* Summary */}
+                    <Text style={styles.recordSummary}>{record.summary}</Text>
 
-                    {record.metrics && (
-                      <View style={styles.metricsRow}>
-                        {record.metrics.map((m, idx) => (
-                          <View key={idx} style={styles.metricChip}>
-                            <Text style={styles.metricChipLabel}>{m.label}:</Text>
-                            <Text style={styles.metricChipValue}>{m.value}</Text>
-                          </View>
-                        ))}
+                    {/* Extracted Text Snippet Preview Box */}
+                    {hasExtractedText && (
+                      <View style={styles.ocrSnippetBox}>
+                        <View style={styles.ocrSnippetHeader}>
+                          <Ionicons name="scan-outline" size={13} color={colors.primary.blue} />
+                          <Text style={styles.ocrSnippetLabel}>Extracted Text (Gemini OCR)</Text>
+                        </View>
+                        <Text style={styles.ocrSnippetText} numberOfLines={4}>
+                          {record.extractedText}
+                        </Text>
                       </View>
                     )}
 
+                    {/* Card Footer */}
                     <View style={styles.cardFooter}>
-                      <View style={styles.statusPill}>
-                        <Text style={styles.statusPillText}>{record.status}</Text>
-                      </View>
-                      <View style={styles.viewDetailsRow}>
-                        <Text style={styles.viewDetailsText}>View Clinical Notes</Text>
+                      <View style={styles.viewEvidenceBtn}>
+                        <Text style={styles.viewEvidenceText}>View Full Transcription</Text>
                         <Ionicons name="chevron-forward" size={14} color={colors.primary.blue} />
                       </View>
+
+                      {hasExtractedText && (
+                        <TouchableOpacity
+                          style={styles.copyIconBtn}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            handleCopyText(record.extractedText);
+                          }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons name="copy-outline" size={16} color={colors.primary.blue} />
+                        </TouchableOpacity>
+                      )}
                     </View>
                   </TouchableOpacity>
                 );
-              })
-            )}
-          </View>
+              })}
+            </View>
+          )}
         </View>
       </ScrollView>
 
-      {/* Detail Modal */}
+      {/* Complete Record & Extracted Text Detail Modal */}
       <Modal
-        visible={!!selectedRecord}
+        visible={selectedRecord !== null}
         animationType="slide"
-        transparent
+        presentationStyle="pageSheet"
         onRequestClose={() => setSelectedRecord(null)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            {selectedRecord && (
-              <>
-                <View style={styles.modalHeader}>
-                  <View style={styles.modalHeaderLeft}>
-                    <Text style={styles.modalCategory}>{selectedRecord.category}</Text>
-                    <Text style={styles.modalTitle}>{selectedRecord.title}</Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => setSelectedRecord(null)}
-                    style={styles.modalCloseBtn}
-                  >
-                    <Ionicons name="close" size={20} color={colors.text.primary} />
-                  </TouchableOpacity>
+        {selectedRecord && (
+          <View style={styles.modalContainer}>
+            {/* Modal Top Bar */}
+            <View style={styles.modalHeader}>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => setSelectedRecord(null)}
+              >
+                <Ionicons name="close" size={24} color={colors.text.primary} />
+              </TouchableOpacity>
+              <Text style={styles.modalHeaderTitle} numberOfLines={1}>
+                {selectedRecord.category} Record
+              </Text>
+              <View style={styles.modalTopActions}>
+                <TouchableOpacity
+                  style={styles.modalActionBtn}
+                  onPress={() => handleDeleteRecord(selectedRecord)}
+                >
+                  <Ionicons name="trash-outline" size={20} color="#DC2626" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalActionBtn}
+                  onPress={() => handleCopyText(selectedRecord.extractedText || selectedRecord.summary)}
+                >
+                  <Ionicons name="copy-outline" size={20} color={colors.primary.blue} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <ScrollView
+              style={styles.modalScrollView}
+              contentContainerStyle={styles.modalScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Category & AI Badges */}
+              <View style={styles.modalBadgeRow}>
+                <View style={[styles.modalCatPill, { backgroundColor: getCategoryColor(selectedRecord.category).bg }]}>
+                  <Text style={[styles.modalCatPillText, { color: getCategoryColor(selectedRecord.category).text }]}>
+                    {selectedRecord.category}
+                  </Text>
                 </View>
 
-                <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-                  <View style={styles.modalMetaCard}>
-                    <View style={styles.modalMetaRow}>
-                      <Text style={styles.modalMetaLabel}>Consultant:</Text>
-                      <Text style={styles.modalMetaVal}>{selectedRecord.doctor}</Text>
-                    </View>
-                    <View style={styles.modalMetaRow}>
-                      <Text style={styles.modalMetaLabel}>Facility:</Text>
-                      <Text style={styles.modalMetaVal}>{selectedRecord.facility}</Text>
-                    </View>
-                    <View style={styles.modalMetaRow}>
-                      <Text style={styles.modalMetaLabel}>Date Recorded:</Text>
-                      <Text style={styles.modalMetaVal}>{selectedRecord.date}</Text>
-                    </View>
-                    <View style={styles.modalMetaRow}>
-                      <Text style={styles.modalMetaLabel}>Clinical Status:</Text>
-                      <Text style={styles.modalMetaVal}>{selectedRecord.status}</Text>
-                    </View>
+                <View style={styles.aiPill}>
+                  <Ionicons name="sparkles" size={12} color="#2563EB" />
+                  <Text style={styles.aiPillText}>Gemini Vision AI</Text>
+                </View>
+                <Text style={styles.modalDateText}>{selectedRecord.date}</Text>
+              </View>
+
+              <Text style={styles.modalTitle}>{selectedRecord.title}</Text>
+
+              {/* Doctor & Facility Box */}
+              <View style={styles.modalDoctorBox}>
+                <View style={styles.modalDocAvatar}>
+                  <Ionicons name="medkit" size={20} color={colors.primary.blue} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalDocName}>{selectedRecord.doctor}</Text>
+                  <Text style={styles.modalFacilityName}>{selectedRecord.facility}</Text>
+                </View>
+              </View>
+
+              {/* Clinical Summary */}
+              <View style={styles.modalSection}>
+                <Text style={styles.modalSectionTitle}>Clinical Overview</Text>
+                <Text style={styles.modalSummaryText}>{selectedRecord.summary}</Text>
+              </View>
+
+              {/* Full Raw Extracted Text Box */}
+              {selectedRecord.extractedText ? (
+                <View style={styles.modalSection}>
+                  <View style={styles.extractedTitleRow}>
+                    <Text style={styles.modalSectionTitle}>Complete Extracted Text (Gemini OCR)</Text>
+                    <TouchableOpacity
+                      style={styles.copyInlineBtn}
+                      onPress={() => handleCopyText(selectedRecord.extractedText)}
+                    >
+                      <Ionicons name="copy-outline" size={14} color={colors.primary.blue} />
+                      <Text style={styles.copyInlineText}>Copy All</Text>
+                    </TouchableOpacity>
                   </View>
 
-                  <Text style={styles.modalSectionTitle}>Clinical Summary</Text>
-                  <Text style={styles.modalSummaryText}>{selectedRecord.summary}</Text>
+                  <View style={styles.modalExtractedPaper}>
+                    <Text style={styles.modalExtractedContent} selectable>
+                      {selectedRecord.extractedText}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
 
-                  {selectedRecord.metrics && (
-                    <>
-                      <Text style={styles.modalSectionTitle}>Extracted Diagnostic Biomarkers</Text>
-                      <View style={styles.modalMetricsGrid}>
-                        {selectedRecord.metrics.map((m, i) => (
-                          <View key={i} style={styles.modalMetricBox}>
-                            <Text style={styles.modalMetricLabel}>{m.label}</Text>
-                            <Text style={styles.modalMetricVal}>{m.value}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </>
-                  )}
-
-                  <Button
-                    title="Download Official Health Report (PDF)"
-                    icon="download-outline"
-                    onPress={() => setSelectedRecord(null)}
-                    style={{ marginTop: spacing.xl, marginBottom: spacing.lg }}
-                  />
-                </ScrollView>
-              </>
-            )}
+              {/* Database & Security Notice */}
+              <View style={styles.securityNotice}>
+                <Ionicons name="shield-checkmark" size={18} color="#059669" />
+                <Text style={styles.securityNoticeText}>
+                  Stored securely in database. Transcribed with Gemini Vision AI.
+                </Text>
+              </View>
+            </ScrollView>
           </View>
-        </View>
+        )}
       </Modal>
     </View>
   );
@@ -477,11 +549,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 110,
+    paddingBottom: spacing.xxl * 2,
   },
   headerGradient: {
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.lg,
   },
@@ -489,374 +559,471 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.base,
+    marginBottom: spacing.md,
   },
   headerTitle: {
     ...typography.h1,
-    color: colors.neutral.white,
+    color: '#FFFFFF',
     fontWeight: '800',
   },
   headerSubtitle: {
-    ...typography.small,
+    fontSize: 13,
     color: 'rgba(255, 255, 255, 0.85)',
     marginTop: 2,
   },
   addRecordBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: borderRadius.full,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   addRecordText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
-    color: colors.neutral.white,
+    color: '#FFFFFF',
   },
   searchContainer: {
     marginTop: spacing.xs,
   },
   contentBody: {
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.base,
+    paddingTop: spacing.md,
   },
-  sectionHeading: {
-    ...typography.h3,
-    color: colors.text.primary,
-    fontWeight: '700',
-    marginBottom: spacing.md,
-  },
-  vitalsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginBottom: spacing.xl,
-  },
-  vitalCard: {
-    width: '48%',
-    backgroundColor: colors.neutral.white,
-    borderRadius: borderRadius.xl,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: '#EDF2FA',
-    ...shadows.soft,
-  },
-  vitalIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.sm,
-  },
-  vitalValue: {
-    ...typography.h2,
-    color: colors.text.primary,
-    fontWeight: '800',
-  },
-  vitalLabel: {
-    ...typography.tiny,
-    color: colors.text.secondary,
-    marginTop: 2,
-  },
-  vitalStatusPill: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.primary.sky,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: borderRadius.full,
-    marginTop: spacing.sm,
-  },
-  vitalStatusText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.primary.blue,
-  },
-  categoriesScroll: {
+
+  // Category Pills
+  categoryScroll: {
     gap: spacing.sm,
     paddingBottom: spacing.md,
   },
-  categoryPill: {
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.neutral.white,
+  categoryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2EAF8',
+    borderColor: colors.neutral[200],
   },
-  categoryPillSelected: {
+  categoryChipActive: {
     backgroundColor: colors.primary.blue,
     borderColor: colors.primary.blue,
-    ...shadows.soft,
   },
   categoryText: {
-    ...typography.smallMedium,
-    color: colors.text.secondary,
+    fontSize: 13,
     fontWeight: '600',
+    color: colors.text.secondary,
   },
-  categoryTextSelected: {
-    color: colors.neutral.white,
+  categoryTextActive: {
+    color: '#FFFFFF',
+  },
+
+  // Section Header
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginVertical: spacing.sm,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sectionTitle: {
+    ...typography.h3,
+    fontSize: 16,
     fontWeight: '700',
+    color: colors.text.primary,
   },
-  timelineList: {
+  headerRightControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  recordsCount: {
+    fontSize: 12,
+    color: colors.text.tertiary,
+    fontWeight: '500',
+  },
+  clearAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  clearAllText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+
+  // Loading
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
     gap: spacing.md,
-    marginTop: spacing.xs,
   },
-  recordCard: {
-    backgroundColor: colors.neutral.white,
-    borderRadius: borderRadius.xxl,
-    padding: spacing.base,
+  loadingText: {
+    fontSize: 13,
+    color: colors.text.secondary,
+  },
+
+  // Empty State
+  emptyStateCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#EFF3FA',
+    borderColor: colors.neutral[200],
+    marginTop: spacing.md,
     ...shadows.card,
   },
-  recordHeaderRow: {
+  emptyIconBox: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text.primary,
+    marginBottom: 4,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.md,
+  },
+  emptyUploadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.primary.blue,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: borderRadius.md,
+    ...shadows.button,
+  },
+  emptyUploadBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+
+  // Records List
+  recordsList: {
+    gap: spacing.md,
+  },
+  recordCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.neutral[200],
+    ...shadows.card,
+  },
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: spacing.sm,
   },
-  categoryTag: {
+  cardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  cardHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  deleteCardBtn: {
+    padding: 2,
+  },
+  categoryBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: spacing.sm + 2,
+    paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: borderRadius.full,
+    borderRadius: 999,
   },
-  categoryTagText: {
+  categoryBadgeText: {
     fontSize: 11,
     fontWeight: '700',
   },
-  headerRight: {
+  aiPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-  },
-  aiBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
+    gap: 4,
     backgroundColor: '#EFF6FF',
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: borderRadius.full,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: '#DBEAFE',
   },
-  aiBadgeText: {
+  aiPillText: {
     fontSize: 10,
     fontWeight: '700',
-    color: colors.primary.blue,
+    color: '#2563EB',
   },
   recordDate: {
-    ...typography.tiny,
+    fontSize: 12,
     color: colors.text.tertiary,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   recordTitle: {
-    ...typography.bodySemibold,
-    color: colors.text.primary,
+    fontSize: 15,
     fontWeight: '700',
-    fontSize: 16,
+    color: colors.text.primary,
+    marginBottom: 4,
   },
   doctorFacilityRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    gap: 4,
     marginBottom: spacing.sm,
   },
-  doctorNameText: {
-    ...typography.tiny,
-    color: colors.primary.blue,
-    fontWeight: '600',
-    marginLeft: 3,
+  doctorText: {
+    fontSize: 12,
+    color: colors.text.secondary,
+    fontWeight: '500',
   },
-  bulletDot: {
-    marginHorizontal: 5,
-    color: colors.text.tertiary,
+  dot: {
     fontSize: 10,
+    color: colors.text.tertiary,
   },
   facilityText: {
-    ...typography.tiny,
-    color: colors.text.secondary,
+    fontSize: 12,
+    color: colors.text.tertiary,
   },
   recordSummary: {
-    ...typography.small,
+    fontSize: 13,
     color: colors.text.secondary,
     lineHeight: 18,
     marginBottom: spacing.sm,
   },
-  metricsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
+
+  // OCR Snippet Box
+  ocrSnippetBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     marginBottom: spacing.sm,
   },
-  metricChip: {
+  ocrSnippetHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primary.sky,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: borderRadius.sm,
     gap: 4,
+    marginBottom: 4,
   },
-  metricChipLabel: {
-    fontSize: 11,
-    color: colors.text.secondary,
-  },
-  metricChipValue: {
+  ocrSnippetLabel: {
     fontSize: 11,
     fontWeight: '700',
     color: colors.primary.blue,
+    textTransform: 'uppercase',
   },
+  ocrSnippetText: {
+    fontFamily: 'monospace',
+    fontSize: 11,
+    color: '#0F172A',
+    lineHeight: 16,
+  },
+
+  // Card Footer
   cardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingTop: spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    marginTop: spacing.xs,
+    borderTopColor: colors.neutral[100],
   },
-  statusPill: {
-    backgroundColor: colors.status.successLight,
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: 2,
-    borderRadius: borderRadius.full,
-  },
-  statusPillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.status.successText,
-  },
-  viewDetailsRow: {
+  viewEvidenceBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  viewDetailsText: {
-    ...typography.smallSemibold,
+  viewEvidenceText: {
+    fontSize: 12,
+    fontWeight: '600',
     color: colors.primary.blue,
   },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xxxl,
+  copyIconBtn: {
+    padding: 4,
   },
-  emptyTitle: {
-    ...typography.h3,
-    color: colors.text.primary,
-    marginTop: spacing.md,
-  },
-  emptySubtitle: {
-    ...typography.small,
-    color: colors.text.secondary,
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  modalOverlay: {
+
+  // Modal
+  modalContainer: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: colors.neutral.white,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    maxHeight: '85%',
-    padding: spacing.xl,
+    backgroundColor: '#FFFFFF',
   },
   modalHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.md,
-  },
-  modalHeaderLeft: {
-    flex: 1,
-    marginRight: spacing.md,
-  },
-  modalCategory: {
-    ...typography.tiny,
-    color: colors.primary.blue,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  modalTitle: {
-    ...typography.h2,
-    color: colors.text.primary,
-    fontWeight: '800',
-    marginTop: 2,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.neutral[200],
   },
   modalCloseBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.neutral.gray100,
+    padding: 4,
+  },
+  modalHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+  modalTopActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  modalActionBtn: {
+    padding: 4,
+  },
+  modalScrollView: {
+    flex: 1,
+  },
+  modalScrollContent: {
+    padding: spacing.xl,
+    paddingBottom: spacing.xxl * 2,
+  },
+  modalBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  modalCatPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  modalCatPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  modalDateText: {
+    fontSize: 12,
+    color: colors.text.tertiary,
+    marginLeft: 'auto',
+  },
+  modalTitle: {
+    ...typography.h1,
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.text.primary,
+    marginBottom: spacing.md,
+  },
+  modalDoctorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: '#F8FAFC',
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  modalDocAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EFF6FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modalBody: {
-    marginTop: spacing.sm,
+  modalDocName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text.primary,
   },
-  modalMetaCard: {
-    backgroundColor: colors.primary.sky,
-    borderRadius: borderRadius.xl,
-    padding: spacing.base,
-    gap: spacing.xs,
-    marginBottom: spacing.base,
-  },
-  modalMetaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  modalMetaLabel: {
-    ...typography.small,
+  modalFacilityName: {
+    fontSize: 12,
     color: colors.text.secondary,
   },
-  modalMetaVal: {
-    ...typography.smallSemibold,
-    color: colors.text.primary,
+  modalSection: {
+    marginBottom: spacing.xl,
   },
   modalSectionTitle: {
     ...typography.h3,
-    color: colors.text.primary,
+    fontSize: 15,
     fontWeight: '700',
-    marginTop: spacing.md,
-    marginBottom: spacing.xs,
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
   },
   modalSummaryText: {
-    ...typography.body,
+    fontSize: 14,
     color: colors.text.secondary,
     lineHeight: 22,
   },
-  modalMetricsGrid: {
+  extractedTitleRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginTop: spacing.xs,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
   },
-  modalMetricBox: {
-    width: '48%',
-    backgroundColor: colors.neutral.gray50,
+  copyInlineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  copyInlineText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primary.blue,
+  },
+  modalExtractedPaper: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: borderRadius.md,
     padding: spacing.md,
-    borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: '#EDF2FA',
+    borderColor: '#E2E8F0',
   },
-  modalMetricLabel: {
-    ...typography.tiny,
-    color: colors.text.secondary,
+  modalExtractedContent: {
+    fontFamily: 'monospace',
+    fontSize: 13,
+    lineHeight: 20,
+    color: '#0F172A',
   },
-  modalMetricVal: {
-    ...typography.bodySemibold,
-    color: colors.text.primary,
-    marginTop: 2,
+  securityNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: '#ECFDF5',
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.md,
+  },
+  securityNoticeText: {
+    fontSize: 11,
+    color: '#065F46',
+    flex: 1,
+    lineHeight: 16,
   },
 });

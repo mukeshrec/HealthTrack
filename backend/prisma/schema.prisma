@@ -58,11 +58,14 @@ model HealthDocument {
   patient         PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
   fileUrl         String
   fileType        String
+  fileName        String?
   uploadDate      DateTime       @default(now())
   documentDate    DateTime?
   source          String?
   description     String?
-  status          String         @default("PENDING") // PENDING, EXTRACTED, FAILED
+  extractedText   String?        @db.Text
+  summary         String?        @db.Text
+  status          String         @default("PENDING") // PENDING, EXTRACTING, EXTRACTED, FAILED
   events          HealthEvent[]
 }
 

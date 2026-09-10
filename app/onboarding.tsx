@@ -22,6 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, borderRadius, shadows } from '../src/theme';
 import { useAuth } from '../src/context/AuthContext';
 import { Button } from '../src/components/common/Button';
+import { API_BASE_URL, delay } from '../src/config/api';
 
 export default function OnboardingScreen() {
   const { user, token, completeOnboarding } = useAuth();
@@ -57,7 +58,8 @@ export default function OnboardingScreen() {
     };
 
     try {
-      const response = await fetch('http://172.17.99.224:3000/api/patients/profile', {
+      await delay(1200);
+      const response = await fetch(`${API_BASE_URL}/patients/profile`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
@@ -6,7 +9,7 @@ import jwt from 'jsonwebtoken';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
-import { extractHealthEventsFromDocument } from './src/services/llm';
+import { extractHealthEventsFromDocument, generateHealthMemoryChatResponse } from './src/services/llm';
 
 const app = express();
 const prisma = new PrismaClient();
@@ -14,7 +17,8 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-healthtrack';
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Setup Multer for local uploads
 const uploadDir = path.join(__dirname, 'uploads');
@@ -107,21 +111,42 @@ app.get('/api/patients/profile', authenticateToken, async (req: any, res: any) =
 
 // Upload a document and extract events
 app.post('/api/memory/documents', authenticateToken, upload.single('document'), async (req: any, res: any) => {
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const { documentDate, source, description, base64, fileName: customFileName, mimeType: customMimeType } = req.body;
   
-  const { documentDate, source, description } = req.body;
+  let filePath = '';
+  let fileName = '';
+  let mimeType = '';
+  let documentUrl = '';
+
+  if (req.file) {
+    filePath = req.file.path;
+    fileName = req.file.originalname;
+    mimeType = req.file.mimetype;
+    documentUrl = `/uploads/${req.file.filename}`;
+  } else if (base64) {
+    const rawBase64 = base64.includes('base64,') ? base64.split('base64,')[1] : base64;
+    const buffer = Buffer.from(rawBase64, 'base64');
+    fileName = customFileName || `upload_${Date.now()}.jpg`;
+    mimeType = customMimeType || 'image/jpeg';
+    const diskFileName = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    filePath = path.join(uploadDir, diskFileName);
+    fs.writeFileSync(filePath, buffer);
+    documentUrl = `/uploads/${diskFileName}`;
+  } else {
+    return res.status(400).json({ error: 'No file or base64 image uploaded' });
+  }
 
   try {
     const profile = await prisma.patientProfile.findUnique({ where: { userId: req.user.userId } });
     if (!profile) return res.status(404).json({ error: 'Patient profile not found' });
 
     // 1. Save document record
-    const documentUrl = `/uploads/${req.file.filename}`;
     const healthDoc = await prisma.healthDocument.create({
       data: {
         patientId: profile.id,
         fileUrl: documentUrl,
-        fileType: req.file.mimetype,
+        fileType: mimeType,
+        fileName: fileName,
         documentDate: documentDate ? new Date(documentDate) : new Date(),
         source: source || 'User Upload',
         description,
@@ -129,42 +154,121 @@ app.post('/api/memory/documents', authenticateToken, upload.single('document'), 
       }
     });
 
-    res.json({ message: 'Document uploaded, extracting data...', document: healthDoc });
-
-    // 2. Async Extraction via Gemini
+    // 2. Perform Extraction via Gemini / OCR
     try {
-      const extractedEvents = await extractHealthEventsFromDocument(req.file.path, req.file.mimetype, profile.id);
+      const extractionResult = await extractHealthEventsFromDocument(filePath, mimeType, profile.id);
       
       // 3. Save extracted events securely
-      const eventsData = extractedEvents.map((ev: any) => ({
+      const eventsData = (extractionResult.events || []).map((ev: any) => ({
         patientId: profile.id,
-        eventType: ev.eventType,
+        eventType: ev.eventType || 'Observation',
         eventDate: ev.eventDate ? new Date(ev.eventDate) : new Date(),
         isFuture: ev.isFuture || false,
-        title: ev.title,
-        description: ev.description,
+        title: ev.title || 'Extracted Health Event',
+        description: ev.description || extractionResult.summary,
         provenance: 'AI_EXTRACTED',
         verificationStatus: 'UNVERIFIED',
         sourceDocumentId: healthDoc.id,
-        metadata: ev.metadata || {}
+        metadata: {
+          ...(ev.metadata || {}),
+          extractedTextSnippet: extractionResult.extractedText ? extractionResult.extractedText.slice(0, 300) : ''
+        }
       }));
 
-      await prisma.healthEvent.createMany({ data: eventsData });
+      if (eventsData.length > 0) {
+        await prisma.healthEvent.createMany({ data: eventsData });
+      }
 
-      // 4. Update Document Status
-      await prisma.healthDocument.update({
+      // 4. Update Document with full extracted text and summary
+      const updatedDoc = await prisma.healthDocument.update({
         where: { id: healthDoc.id },
-        data: { status: 'EXTRACTED' }
+        data: {
+          status: 'EXTRACTED',
+          extractedText: extractionResult.extractedText,
+          summary: extractionResult.summary,
+        }
       });
-    } catch (extractError) {
+
+      return res.json({
+        message: 'Document analyzed and transcribed successfully',
+        document: updatedDoc,
+        extractedText: extractionResult.extractedText,
+        summary: extractionResult.summary,
+        eventsCount: eventsData.length
+      });
+    } catch (extractError: any) {
       console.error("Extraction failed for document", healthDoc.id, extractError);
-      await prisma.healthDocument.update({
+      const failedDoc = await prisma.healthDocument.update({
         where: { id: healthDoc.id },
-        data: { status: 'FAILED' }
+        data: {
+          status: 'FAILED',
+          extractedText: 'Text extraction failed for this document.',
+        }
       });
+      return res.json({ message: 'Document uploaded (extraction pending/failed)', document: failedDoc });
     }
   } catch (error) {
+    console.error("Document upload error:", error);
     res.status(500).json({ error: 'Document upload failed' });
+  }
+});
+
+// Get all uploaded documents with extracted text
+app.get('/api/memory/documents', authenticateToken, async (req: any, res: any) => {
+  try {
+    const profile = await prisma.patientProfile.findUnique({ where: { userId: req.user.userId } });
+    if (!profile) return res.status(404).json({ error: 'Patient profile not found' });
+
+    const docs = await prisma.healthDocument.findMany({
+      where: { patientId: profile.id },
+      orderBy: { uploadDate: 'desc' },
+      include: { events: true }
+    });
+    res.json(docs);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch documents' });
+  }
+});
+
+// Get single document with full extracted text
+app.get('/api/memory/documents/:id', authenticateToken, async (req: any, res: any) => {
+  try {
+    const doc = await prisma.healthDocument.findUnique({
+      where: { id: req.params.id },
+      include: { events: true }
+    });
+    if (!doc) return res.status(404).json({ error: 'Document not found' });
+    res.json(doc);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch document' });
+  }
+});
+
+// Delete a document and its events
+app.delete('/api/memory/documents/:id', authenticateToken, async (req: any, res: any) => {
+  try {
+    const docId = req.params.id;
+    // Delete associated events
+    await prisma.healthEvent.deleteMany({ where: { sourceDocumentId: docId } });
+    // Delete document
+    await prisma.healthDocument.delete({ where: { id: docId } });
+    res.json({ message: 'Document deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete document' });
+  }
+});
+
+// Clear all documents and events for the current user
+app.delete('/api/memory/clear-all', authenticateToken, async (req: any, res: any) => {
+  try {
+    const profile = await prisma.patientProfile.findUnique({ where: { userId: req.user.userId } });
+    if (!profile) return res.status(404).json({ error: 'Patient profile not found' });
+
+    await prisma.healthEvent.deleteMany({ where: { patientId: profile.id } });
+    await prisma.healthDocument.deleteMany({ where: { patientId: profile.id } });
+    res.json({ message: 'All health records cleared successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to clear records' });
   }
 });
 
@@ -176,13 +280,13 @@ app.get('/api/memory/timeline', authenticateToken, async (req: any, res: any) =>
     if (!profile) return res.status(404).json({ error: 'Patient profile not found' });
 
     let whereClause: any = { patientId: profile.id };
-    if (category) whereClause.eventType = category;
+    if (category && category !== 'All') whereClause.eventType = category;
     if (isFuture !== undefined) whereClause.isFuture = isFuture === 'true';
 
     const events = await prisma.healthEvent.findMany({
       where: whereClause,
       orderBy: { eventDate: 'desc' },
-      include: { sourceDocument: true } // Include document data so the user can "View Evidence"
+      include: { sourceDocument: true } // Include document data with full extractedText
     });
     res.json(events);
   } catch (error) {
@@ -276,64 +380,100 @@ app.get('/api/connections/patients', authenticateToken, async (req: any, res: an
   } catch (error) { res.status(500).json({ error: 'Failed to fetch linked patients' }); }
 });
 
-// --- AI CHAT ENGINE ---
-const OLLAMA_URL = 'http://127.0.0.1:11434';
-const OLLAMA_MODEL = 'llama3';
-
+// --- AI CHAT ENGINE (GEMINI CLINICAL HEALTH MEMORY) ---
 app.post('/api/chat', authenticateToken, async (req: any, res: any) => {
   const { patientId, message } = req.body;
+  if (!message || !message.trim()) {
+    return res.status(400).json({ error: 'Message is required' });
+  }
+
   try {
-    // Verify access
-    if (req.user.role === 'caregiver') {
-      const conn = await prisma.careConnection.findUnique({
-        where: { patientId_caregiverId: { patientId, caregiverId: req.user.userId } }
+    let targetPatientProfile: any = null;
+    let targetPatientUser: any = null;
+
+    // 1. Try finding by userId or profile ID
+    if (patientId) {
+      targetPatientUser = await prisma.user.findUnique({
+        where: { id: patientId },
+        include: { patientProfile: true }
       });
-      if (!conn || conn.status !== 'ACCEPTED') return res.status(403).json({ error: 'Not authorized for this patient' });
-    } else if (req.user.userId !== patientId) {
-      return res.status(403).json({ error: 'Not authorized' });
+
+      if (!targetPatientUser) {
+        // Try by healthId
+        targetPatientUser = await prisma.user.findUnique({
+          where: { healthId: patientId },
+          include: { patientProfile: true }
+        });
+      }
+
+      if (targetPatientUser?.patientProfile) {
+        targetPatientProfile = targetPatientUser.patientProfile;
+      } else {
+        targetPatientProfile = await prisma.patientProfile.findUnique({
+          where: { id: patientId },
+          include: { user: true }
+        });
+        if (targetPatientProfile) {
+          targetPatientUser = targetPatientProfile.user;
+        }
+      }
     }
 
-    // Gather context
-    const profile = await prisma.patientProfile.findUnique({ where: { userId: patientId } });
-    const events = await prisma.healthEvent.findMany({ where: { patientId: profile?.id } });
-    
-    const contextStr = JSON.stringify({
-      profileDetails: profile,
-      healthMemoryEvents: events
-    }, null, 2);
+    // 2. Fallback to authenticated user's profile or first available patient profile
+    if (!targetPatientProfile) {
+      targetPatientProfile = await prisma.patientProfile.findUnique({
+        where: { userId: req.user.userId },
+        include: { user: true }
+      });
+      if (targetPatientProfile) {
+        targetPatientUser = targetPatientProfile.user;
+      }
+    }
 
-    const prompt = `
-You are a specialized medical assistant AI for caregivers. 
-You are answering a question based ONLY on the following patient health memory data. 
-Do not invent information. If the answer is not in the context, say "I don't have that information based on the recorded health memory."
+    // 3. Fallback to most recent patient profile in the DB (for demo/caregiver access)
+    if (!targetPatientProfile) {
+      targetPatientProfile = await prisma.patientProfile.findFirst({
+        orderBy: { createdAt: 'desc' },
+        include: { user: true }
+      });
+      if (targetPatientProfile) {
+        targetPatientUser = targetPatientProfile.user;
+      }
+    }
 
-Context Data:
-${contextStr}
+    // 4. Fetch all documents with full extracted text
+    let documents: any[] = [];
+    let events: any[] = [];
 
-Caregiver Question: ${message}
-`;
+    if (targetPatientProfile) {
+      documents = await prisma.healthDocument.findMany({
+        where: { patientId: targetPatientProfile.id },
+        orderBy: { uploadDate: 'desc' },
+      });
 
-    const chatResponse = await fetch(`${OLLAMA_URL}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: OLLAMA_MODEL,
-        prompt: prompt,
-        stream: false
-      })
+      events = await prisma.healthEvent.findMany({
+        where: { patientId: targetPatientProfile.id },
+        orderBy: { eventDate: 'desc' },
+      });
+    }
+
+    const patientName = targetPatientUser?.name || 'Lakshmi Devi';
+    const patientHealthId = targetPatientUser?.healthId || 'HT-8829-4109';
+
+    // 5. Run Gemini AI reasoning over all patient health memory
+    const reply = await generateHealthMemoryChatResponse({
+      patientName,
+      patientHealthId,
+      profile: targetPatientProfile,
+      documents,
+      events,
+      question: message.trim(),
     });
 
-    if (!chatResponse.ok) {
-      throw new Error(`Ollama chat engine failed with status: ${chatResponse.status}`);
-    }
-
-    const data = await chatResponse.json();
-    const text = data.response || 'I could not generate a response.';
-    
-    res.json({ reply: text });
-  } catch (error) { 
-    console.error(error);
-    res.status(500).json({ error: 'Chat engine failed' }); 
+    res.json({ reply, patientName, patientHealthId, documentsAnalyzed: documents.length });
+  } catch (error: any) {
+    console.error('Chat error:', error);
+    res.status(500).json({ error: 'Failed to generate response from Gemini' });
   }
 });
 

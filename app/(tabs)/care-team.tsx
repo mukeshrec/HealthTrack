@@ -25,6 +25,7 @@ import * as Clipboard from 'expo-clipboard';
 import { colors, typography, spacing, borderRadius, shadows } from '../../src/theme';
 import { Avatar, Button, SearchBar } from '../../src/components/common';
 import { useAuth } from '../../src/context/AuthContext';
+import { API_BASE_URL, delay } from '../../src/config/api';
 
 interface DoctorProfile {
   id: string;
@@ -116,7 +117,8 @@ export default function CareTeamScreen() {
 
   const fetchRequests = async () => {
     try {
-      const response = await fetch('http://172.17.99.224:3000/api/connections/pending', {
+      await delay(1200);
+      const response = await fetch(`${API_BASE_URL}/connections/pending`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -134,7 +136,8 @@ export default function CareTeamScreen() {
 
   const acceptRequest = async (connectionId: string) => {
     try {
-      const response = await fetch('http://172.17.99.224:3000/api/connections/accept', {
+      await delay(1200);
+      const response = await fetch(`${API_BASE_URL}/connections/accept`, {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${token}`,

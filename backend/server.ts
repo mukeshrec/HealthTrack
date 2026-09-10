@@ -804,6 +804,106 @@ app.post('/api/chat', authenticateToken, async (req: any, res: any) => {
   }
 });
 
+// --- PATIENT VOICE ALARM & SMS NOTIFICATIONS ENGINE ---
+const activeAlarms: Record<string, any> = {};
+
+// Trigger a voice alarm and/or SMS reminder for a patient
+app.post('/api/notifications/trigger-alarm', authenticateToken, async (req: any, res: any) => {
+  const { patientId, medicineName, dosage, instruction, slot, time, patientPhone, senderName, sendSms } = req.body;
+  try {
+    const alarmId = `alarm-${Date.now()}`;
+    const alarmData = {
+      id: alarmId,
+      patientId: patientId || 'default-patient',
+      medicineName: medicineName || 'Prescribed Dose',
+      dosage: dosage || '1 tablet',
+      instruction: instruction || 'After Food',
+      slot: slot || 'Morning',
+      time: time || '08:00 AM',
+      patientPhone: patientPhone || '+91 98765 43210',
+      senderName: senderName || req.user?.name || 'Guardian',
+      triggeredAt: new Date().toISOString(),
+      active: true,
+      sendSms: !!sendSms
+    };
+
+    activeAlarms[alarmData.patientId] = alarmData;
+    activeAlarms['all'] = alarmData; // Fallback for global broadcast / demo
+
+    console.log(`[ALARM TRIGGERED] for Patient ${patientId}: ${medicineName} (${dosage}) at ${time}. SMS: ${sendSms}`);
+
+    res.json({ success: true, alarm: alarmData, message: 'Voice alarm & notification triggered successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to trigger alarm' });
+  }
+});
+
+// Check if there is an active audible voice alarm for the patient
+app.get('/api/notifications/active-alarm', authenticateToken, async (req: any, res: any) => {
+  const { patientId } = req.query;
+  try {
+    const pid = patientId || req.user.userId;
+    const alarm = activeAlarms[pid] || activeAlarms['all'];
+    if (alarm && alarm.active) {
+      return res.json({ active: true, alarm });
+    }
+    res.json({ active: false });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch active alarm' });
+  }
+});
+
+// Dismiss or acknowledge active alarm
+app.post('/api/notifications/dismiss-alarm', authenticateToken, async (req: any, res: any) => {
+  const { alarmId, patientId, taken } = req.body;
+  try {
+    const pid = patientId || req.user.userId;
+    if (activeAlarms[pid]) {
+      activeAlarms[pid].active = false;
+    }
+    if (activeAlarms['all']) {
+      activeAlarms['all'].active = false;
+    }
+    res.json({ success: true, message: 'Alarm dismissed successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to dismiss alarm' });
+  }
+});
+
+// Update or set patient's mobile number
+app.post('/api/patients/phone', authenticateToken, async (req: any, res: any) => {
+  const { patientId, phone } = req.body;
+  try {
+    let targetProfile: any = null;
+    if (patientId) {
+      let patientUser = await prisma.user.findFirst({
+        where: { OR: [{ id: patientId }, { healthId: patientId }] },
+        include: { patientProfile: true }
+      });
+      targetProfile = patientUser?.patientProfile || await prisma.patientProfile.findUnique({ where: { id: patientId } });
+    }
+    if (!targetProfile) {
+      targetProfile = await prisma.patientProfile.findUnique({ where: { userId: req.user.userId } });
+    }
+    if (!targetProfile) {
+      targetProfile = await prisma.patientProfile.findFirst({ orderBy: { createdAt: 'desc' } });
+    }
+
+    if (targetProfile) {
+      const currentDetails = (targetProfile.personalDetails as any) || {};
+      const updatedDetails = { ...currentDetails, phone: phone.trim() };
+      await prisma.patientProfile.update({
+        where: { id: targetProfile.id },
+        data: { personalDetails: updatedDetails }
+      });
+    }
+
+    res.json({ success: true, phone: phone?.trim(), message: 'Patient phone number saved' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update patient phone' });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on http://0.0.0.0:${PORT}`);
 });

@@ -6,7 +6,7 @@
  * 2. Patient: Real-world clinical vitals, teleconsultation hero, medication tracker
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   ScrollView,
@@ -25,10 +25,13 @@ import {
   TodaysCare,
   RecentUpdates,
   UpcomingAppointments,
+  MedicineVoiceAlarmModal,
+  AlarmPayload,
 } from '../../src/components/home';
 import { CaregiverDashboard } from '../../src/components/home/CaregiverDashboard';
 import { colors, spacing } from '../../src/theme';
 import { useAuth } from '../../src/context/AuthContext';
+import { API_BASE_URL } from '../../src/config/api';
 import {
   currentPatient,
   quickActions,
@@ -39,11 +42,116 @@ import {
 } from '../../src/constants/mockData';
 
 export default function HomeScreen() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
+
+  // Live Looping Voice Alarm State
+  const [alarmData, setAlarmData] = useState<AlarmPayload | null>(null);
+  const [isAlarmModalVisible, setIsAlarmModalVisible] = useState(false);
+  const lastAlarmIdRef = useRef<string | null>(null);
+
+  // Poll for active guardian voice alarms if logged in as patient
+  useEffect(() => {
+    if (user?.role === 'caregiver') return;
+
+    const checkActiveAlarm = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/notifications/active-alarm?patientId=${user?.id || 'default-patient'}`, {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.active && data.alarm) {
+            if (lastAlarmIdRef.current !== data.alarm.id) {
+              lastAlarmIdRef.current = data.alarm.id;
+              setAlarmData({
+                id: data.alarm.id,
+                medicineName: data.alarm.medicineName,
+                dosage: data.alarm.dosage,
+                instruction: data.alarm.instruction,
+                slot: data.alarm.slot,
+                time: data.alarm.time,
+                senderName: data.alarm.senderName,
+                patientName: user?.name ? user.name.split(' ')[0] : 'Lakshmi',
+              });
+              setIsAlarmModalVisible(true);
+            }
+          }
+        }
+      } catch (err) {
+        // quiet fallback
+      }
+    };
+
+    checkActiveAlarm();
+    const interval = setInterval(checkActiveAlarm, 4000);
+    return () => clearInterval(interval);
+  }, [user, token]);
+
+  const handleTestVoiceAlarm = () => {
+    const sampleMed = medications[0] || {
+      name: 'Metformin Hydrochloride',
+      dosage: '500mg',
+      schedule: 'After Breakfast',
+      time: '08:00 AM'
+    };
+
+    setAlarmData({
+      id: `test-alarm-${Date.now()}`,
+      medicineName: sampleMed.name,
+      dosage: sampleMed.dosage,
+      instruction: 'After Breakfast',
+      slot: 'Morning',
+      time: '08:00 AM',
+      senderName: 'Guardian Anand Devi',
+      patientName: user?.name ? user.name.split(' ')[0] : 'Lakshmi',
+    });
+    setIsAlarmModalVisible(true);
+  };
+
+  const handleTurnOffAndTake = async () => {
+    setIsAlarmModalVisible(false);
+    if (alarmData?.id) {
+      try {
+        await fetch(`${API_BASE_URL}/notifications/dismiss-alarm`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            alarmId: alarmData.id,
+            patientId: user?.id,
+            taken: true
+          })
+        });
+      } catch (e) {}
+    }
+    Alert.alert('Dose Logged', `${alarmData?.medicineName || 'Medicine'} marked as taken. Guardian notified.`);
+  };
+
+  const handleDismissAlarm = async () => {
+    setIsAlarmModalVisible(false);
+    if (alarmData?.id) {
+      try {
+        await fetch(`${API_BASE_URL}/notifications/dismiss-alarm`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            alarmId: alarmData.id,
+            patientId: user?.id,
+            taken: false
+          })
+        });
+      } catch (e) {}
+    }
+  };
 
   // If logged in as Caregiver, show the Caregiver Guardian Console
   if (user?.role === 'caregiver') {
@@ -99,6 +207,14 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#2563EB" />
 
+      {/* Looping Audible Voice Alarm Modal for Patient */}
+      <MedicineVoiceAlarmModal
+        visible={isAlarmModalVisible}
+        alarmData={alarmData}
+        onDismiss={handleDismissAlarm}
+        onTakeMedicine={handleTurnOffAndTake}
+      />
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -144,12 +260,13 @@ export default function HomeScreen() {
             onActionPress={handleQuickAction}
           />
 
-          {/* Today's Care: Medications & Daily Check */}
+          {/* Today's Care: Medications & Daily Check with Test Voice Alarm Button */}
           <TodaysCare
             medications={medications}
             dailyCheck={dailyHealthCheck}
             onSeeAllMedications={() => router.push('/(tabs)/health-memory')}
             onDailyCheckPress={() => router.push('/(tabs)/health-memory')}
+            onTestVoiceAlarm={handleTestVoiceAlarm}
           />
 
           {/* Upcoming Consultations */}

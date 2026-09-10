@@ -272,6 +272,120 @@ app.delete('/api/memory/clear-all', authenticateToken, async (req: any, res: any
   }
 });
 
+// Get extracted medications and schedule from Health Memory
+app.get('/api/memory/medications', authenticateToken, async (req: any, res: any) => {
+  const { patientId } = req.query;
+  try {
+    let targetProfile: any = null;
+
+    if (patientId) {
+      let patientUser = await prisma.user.findUnique({
+        where: { id: patientId },
+        include: { patientProfile: true }
+      });
+      if (!patientUser) {
+        patientUser = await prisma.user.findUnique({
+          where: { healthId: patientId },
+          include: { patientProfile: true }
+        });
+      }
+      if (patientUser?.patientProfile) {
+        targetProfile = patientUser.patientProfile;
+      } else {
+        targetProfile = await prisma.patientProfile.findUnique({ where: { id: patientId } });
+      }
+    }
+
+    if (!targetProfile) {
+      targetProfile = await prisma.patientProfile.findUnique({ where: { userId: req.user.userId } });
+    }
+
+    if (!targetProfile) {
+      targetProfile = await prisma.patientProfile.findFirst({ orderBy: { createdAt: 'desc' } });
+    }
+
+    if (!targetProfile) {
+      return res.json([]);
+    }
+
+    // Fetch medication events and documents
+    const medEvents = await prisma.healthEvent.findMany({
+      where: {
+        patientId: targetProfile.id,
+        eventType: { in: ['Medication', 'Prescription'] }
+      },
+      orderBy: { eventDate: 'desc' },
+      include: { sourceDocument: true }
+    });
+
+    const docs = await prisma.healthDocument.findMany({
+      where: {
+        patientId: targetProfile.id,
+        status: 'EXTRACTED'
+      },
+      orderBy: { uploadDate: 'desc' }
+    });
+
+    const schedules: any[] = [];
+
+    // Helper to determine timing slot
+    const determineSlotAndTiming = (desc: string, meta: any) => {
+      const text = `${desc} ${JSON.stringify(meta || {})}`.toLowerCase();
+      if (text.includes('night') || text.includes('bedtime') || text.includes('dinner') || text.includes('pm') || text.includes('evening')) {
+        return { time: '08:30 PM', slot: 'Night', instruction: text.includes('before food') ? 'Before Dinner' : 'After Dinner' };
+      } else if (text.includes('afternoon') || text.includes('lunch') || text.includes('noon')) {
+        return { time: '01:30 PM', slot: 'Afternoon', instruction: 'After Lunch' };
+      } else {
+        return { time: '08:00 AM', slot: 'Morning', instruction: text.includes('before food') ? 'Before Breakfast' : 'After Breakfast' };
+      }
+    };
+
+    // 1. Process structured HealthEvents
+    medEvents.forEach((ev: any) => {
+      const timingInfo = determineSlotAndTiming(ev.description || '', ev.metadata);
+      schedules.push({
+        id: ev.id,
+        name: ev.title.replace(/^Prescription:\s*/i, ''),
+        dosage: ev.metadata?.dosage || '1 tablet',
+        time: timingInfo.time,
+        slot: timingInfo.slot,
+        instruction: ev.metadata?.instructions || timingInfo.instruction,
+        source: ev.sourceDocument?.fileName || 'Extracted Prescription',
+        prescribedDate: ev.eventDate ? new Date(ev.eventDate).toLocaleDateString() : 'Active',
+        taken: false
+      });
+    });
+
+    // 2. If no direct events yet, parse from uploaded documents with extractedText
+    if (schedules.length === 0 && docs.length > 0) {
+      docs.forEach((doc: any) => {
+        const rawText = doc.extractedText || '';
+        const matches = rawText.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(\d+\s*(?:mg|ml|mcg|g|iu|tablet|tab|cap))/gi);
+        if (matches && matches.length > 0) {
+          matches.slice(0, 5).forEach((mStr: string, idx: number) => {
+            schedules.push({
+              id: `${doc.id}-med-${idx}`,
+              name: mStr.trim(),
+              dosage: mStr.trim(),
+              time: idx === 0 ? '08:00 AM' : idx === 1 ? '01:30 PM' : '08:30 PM',
+              slot: idx === 0 ? 'Morning' : idx === 1 ? 'Afternoon' : 'Night',
+              instruction: idx === 0 ? 'Before Breakfast' : 'After Food',
+              source: doc.fileName || 'Uploaded Prescription',
+              prescribedDate: new Date(doc.uploadDate).toLocaleDateString(),
+              taken: false
+            });
+          });
+        }
+      });
+    }
+
+    res.json(schedules);
+  } catch (error) {
+    console.error('Medications fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch medications' });
+  }
+});
+
 // Get Timeline Events
 app.get('/api/memory/timeline', authenticateToken, async (req: any, res: any) => {
   const { category, isFuture } = req.query;

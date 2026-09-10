@@ -18,6 +18,7 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -97,6 +98,7 @@ export function CaregiverDashboard() {
 
   const [scheduleModalVisible, setScheduleModalVisible] = useState(false);
   const [selectedPatientForSchedule, setSelectedPatientForSchedule] = useState<any>(null);
+  const [isLoadingMeds, setIsLoadingMeds] = useState(false);
   const [scheduledMeds, setScheduledMeds] = useState<Array<{
     id: string;
     name: string;
@@ -104,6 +106,8 @@ export function CaregiverDashboard() {
     time: string;
     slot: 'Morning' | 'Afternoon' | 'Night';
     instruction: string;
+    source?: string;
+    prescribedDate?: string;
     taken: boolean;
   }>>([
     {
@@ -113,6 +117,8 @@ export function CaregiverDashboard() {
       time: '08:00 AM',
       slot: 'Morning',
       instruction: 'Before Breakfast',
+      source: 'Uploaded Prescription',
+      prescribedDate: 'Current Active',
       taken: true,
     },
     {
@@ -122,6 +128,8 @@ export function CaregiverDashboard() {
       time: '01:30 PM',
       slot: 'Afternoon',
       instruction: 'After Lunch',
+      source: 'Uploaded Prescription',
+      prescribedDate: 'Current Active',
       taken: false,
     },
     {
@@ -131,6 +139,8 @@ export function CaregiverDashboard() {
       time: '08:30 PM',
       slot: 'Night',
       instruction: 'After Dinner',
+      source: 'Uploaded Prescription',
+      prescribedDate: 'Current Active',
       taken: false,
     },
   ]);
@@ -141,9 +151,26 @@ export function CaregiverDashboard() {
   const [newMedSlot, setNewMedSlot] = useState<'Morning' | 'Afternoon' | 'Night'>('Morning');
   const [isAddingMed, setIsAddingMed] = useState(false);
 
-  const openMedicineScheduler = (patient: any) => {
+  const openMedicineScheduler = async (patient: any) => {
     setSelectedPatientForSchedule(patient);
     setScheduleModalVisible(true);
+    setIsLoadingMeds(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/memory/medications?patientId=${patient.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setScheduledMeds(data);
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch dynamic medications from backend:', e);
+    } finally {
+      setIsLoadingMeds(false);
+    }
   };
 
   const toggleMedTaken = (medId: string) => {
@@ -311,35 +338,61 @@ export function CaregiverDashboard() {
               </View>
 
               {/* Medication List */}
-              <Text style={styles.subSectionTitle}>Active Prescribed Doses</Text>
-              <View style={{ gap: spacing.sm, marginBottom: spacing.md }}>
-                {scheduledMeds.map((med) => (
-                  <View key={med.id} style={[styles.medCard, med.taken && styles.medCardTaken]}>
-                    <TouchableOpacity
-                      style={[styles.checkboxCircle, med.taken && styles.checkboxCircleActive]}
-                      onPress={() => toggleMedTaken(med.id)}
-                      activeOpacity={0.8}
-                    >
-                      {med.taken && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
-                    </TouchableOpacity>
-
-                    <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                      <Text style={[styles.medName, med.taken && styles.medNameTaken]}>{med.name}</Text>
-                      <Text style={styles.medDetails}>
-                        {med.dosage} • {med.time} ({med.instruction})
-                      </Text>
-                    </View>
-
-                    <TouchableOpacity
-                      style={styles.remindBtn}
-                      onPress={() => sendPatientReminder(med)}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="notifications-outline" size={15} color={colors.primary.blue} />
-                    </TouchableOpacity>
-                  </View>
-                ))}
+              <View style={styles.medListHeaderRow}>
+                <Text style={styles.subSectionTitle}>Prescribed Medications & Timetable</Text>
+                {isLoadingMeds && <ActivityIndicator size="small" color={colors.primary.blue} />}
               </View>
+
+              <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+                <View style={{ gap: spacing.sm, marginBottom: spacing.md }}>
+                  {scheduledMeds.map((med) => (
+                    <View key={med.id} style={[styles.medCard, med.taken && styles.medCardTaken]}>
+                      <TouchableOpacity
+                        style={[styles.checkboxCircle, med.taken && styles.checkboxCircleActive]}
+                        onPress={() => toggleMedTaken(med.id)}
+                        activeOpacity={0.8}
+                      >
+                        {med.taken && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
+                      </TouchableOpacity>
+
+                      <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                        <View style={styles.medHeaderLine}>
+                          <Text style={[styles.medName, med.taken && styles.medNameTaken]}>{med.name}</Text>
+                          <View style={styles.slotBadge}>
+                            <Ionicons
+                              name={med.slot === 'Morning' ? 'sunny' : med.slot === 'Afternoon' ? 'partly-sunny' : 'moon'}
+                              size={11}
+                              color={med.slot === 'Morning' ? '#D97706' : med.slot === 'Afternoon' ? '#2563EB' : '#7C3AED'}
+                            />
+                            <Text style={styles.slotBadgeText}>{med.time}</Text>
+                          </View>
+                        </View>
+
+                        <Text style={styles.medDetails}>
+                          {med.dosage} • {med.instruction}
+                        </Text>
+
+                        {med.source && (
+                          <View style={styles.sourceTagRow}>
+                            <Ionicons name="sparkles" size={10} color="#2563EB" />
+                            <Text style={styles.sourceTagText} numberOfLines={1}>
+                              {med.source}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                      <TouchableOpacity
+                        style={styles.remindBtn}
+                        onPress={() => sendPatientReminder(med)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="notifications-outline" size={15} color={colors.primary.blue} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
 
               {/* Add New Dose Form Toggle */}
               {isAddingMed ? (
@@ -675,22 +728,58 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
   },
+  medListHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
   subSectionTitle: {
     fontSize: 12,
     fontWeight: '700',
     color: colors.text.primary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: spacing.sm,
   },
   medCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     padding: spacing.sm + 2,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    ...shadows.soft,
+  },
+  medHeaderLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  slotBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+  },
+  slotBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.text.primary,
+  },
+  sourceTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 3,
+  },
+  sourceTagText: {
+    fontSize: 10,
+    color: '#2563EB',
+    fontWeight: '600',
   },
   medCardTaken: {
     backgroundColor: '#F8FAFC',

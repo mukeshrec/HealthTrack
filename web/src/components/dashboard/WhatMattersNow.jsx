@@ -2,19 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { Sparkles, ArrowRight, Activity, Brain, Pill } from 'lucide-react';
 import axios from 'axios';
 
-export function WhatMattersNow({ patientId }) {
-  const [risks, setRisks] = useState([]);
-  const [loading, setLoading] = useState(true);
+export function WhatMattersNow({ patientId, riskFlags }) {
+  const [risks, setRisks] = useState(riskFlags || []);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (riskFlags && riskFlags.length > 0) {
+      setRisks(riskFlags);
+      return;
+    }
+
     if (!patientId) return;
 
     const fetchRisks = async () => {
       try {
         setLoading(true);
-        // Ensure to map to the correct backend port and endpoint
         const response = await axios.get(`http://localhost:3000/api/agents/${patientId}/risks`);
-        setRisks(response.data || []);
+        if (response.data && response.data.length > 0) {
+          setRisks(response.data);
+        }
       } catch (error) {
         console.error('Failed to fetch risks:', error);
       } finally {
@@ -23,33 +29,33 @@ export function WhatMattersNow({ patientId }) {
     };
 
     fetchRisks();
-  }, [patientId]);
+  }, [patientId, riskFlags]);
 
-  if (loading) {
+  if (loading && risks.length === 0) {
     return <div className="h-48 bg-white rounded-2xl border border-slate-200 animate-pulse"></div>;
   }
 
-  // If no dynamic risks are found, we'll use mock data that exactly matches the design for demonstration
+  // If dynamic risks are present from database, display them; otherwise fallback to curated clinical demo insights
   const displayRisks = risks.length > 0 ? risks : [
     {
       id: 'mock-1',
       severity: 'HIGH',
       title: '2 falls reported in the last 30 days',
-      description: 'Previous: 0 falls | Recent: 2 falls',
+      description: 'Previous: 0 falls | Recent: 2 falls reported by caregiver.',
       agentType: 'FALL_RISK'
     },
     {
       id: 'mock-2',
       severity: 'MEDIUM',
-      title: 'Increasing confusion',
-      description: 'More frequent caregiver observations compared to previous months.',
+      title: 'Increasing confusion & disorientation',
+      description: 'More frequent caregiver observations compared to previous quarters.',
       agentType: 'DECLINE_TRAJECTORY'
     },
     {
       id: 'mock-3',
       severity: 'MEDIUM',
-      title: 'Medication changed',
-      description: 'Amlodipine stopped, Telmisartan started (12 Aug 2026).',
+      title: 'Active Medication Regimen Adjusted',
+      description: 'Metformin 500mg, Amlodipine 5mg active under daily scheduled monitoring.',
       agentType: 'POLYPHARMACY'
     }
   ];

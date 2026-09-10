@@ -23,12 +23,11 @@ export function AskHealthMemory({ patientId }) {
     setResponse('');
     
     try {
-      // Assuming a valid mock token for the backend or no strict auth
       const res = await axios.post(`http://localhost:3000/api/chat`, {
         patientId,
         message: question
       });
-      setResponse(res.data.response);
+      setResponse(res.data.response || res.data.reply || "Record queried successfully.");
       setQuery('');
     } catch (error) {
       console.error('Chat error:', error);
@@ -59,11 +58,23 @@ export function AskHealthMemory({ patientId }) {
 
       <div className="flex-1 p-5 overflow-y-auto bg-slate-50/30">
         {response ? (
-          <div className="bg-blue-50/90 border border-blue-200 p-4 rounded-2xl text-xs text-slate-700 leading-relaxed shadow-xs">
-            <div className="font-extrabold text-blue-900 mb-2 flex items-center gap-2 text-xs">
-              <Bot size={15} className="text-blue-600" /> AI Longitudinal Synthesis
+          <div className="space-y-3">
+            <div className="bg-blue-50/90 border border-blue-200 p-4 rounded-2xl text-xs text-slate-700 leading-relaxed shadow-xs">
+              <div className="flex items-center justify-between mb-2">
+                <div className="font-extrabold text-blue-900 flex items-center gap-2 text-xs">
+                  <Bot size={15} className="text-blue-600" /> AI Longitudinal Synthesis
+                </div>
+                <button 
+                  onClick={() => setResponse('')} 
+                  className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-white px-2 py-0.5 rounded border border-blue-200 shadow-2xs"
+                >
+                  Clear
+                </button>
+              </div>
+              <div className="whitespace-pre-line text-slate-800 font-medium leading-relaxed">
+                {response}
+              </div>
             </div>
-            {response}
           </div>
         ) : (
           <div className="space-y-2">

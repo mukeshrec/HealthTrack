@@ -1,7 +1,36 @@
 import React from 'react';
 import { Share2, ArrowRight, Activity, FileText, Calendar, AlertTriangle, Pill } from 'lucide-react';
 
-export function PatientJourney() {
+export function PatientJourney({ patientId, events = [] }) {
+  // Map dynamic events from database if available, otherwise fallback to standard clinical timeline
+  const displayNodes = events.length > 0
+    ? events.slice(0, 6).reverse().map((ev, idx) => {
+        const d = ev.eventDate ? new Date(ev.eventDate) : new Date();
+        const year = !isNaN(d.getFullYear()) ? d.getFullYear().toString() : '2026';
+        const formattedDate = !isNaN(d.getTime()) ? d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'Active';
+
+        let color = 'bg-blue-600';
+        if (ev.eventType === 'Observation') color = 'bg-sky-500';
+        if (ev.eventType === 'Prescription' || ev.eventType === 'Medication') color = 'bg-indigo-600';
+        if (ev.eventType === 'Condition') color = 'bg-purple-600';
+        if (ev.title?.toLowerCase().includes('fall')) color = 'bg-rose-500';
+
+        return {
+          id: ev.id || `node-${idx}`,
+          year,
+          color,
+          title: ev.title || 'Clinical Event',
+          subtitle: `${ev.eventType || 'Record'} • ${formattedDate}`
+        };
+      })
+    : [
+        { id: '1', year: '2022', color: 'bg-blue-600', title: 'Diabetes diagnosed', subtitle: 'Clinic Visit' },
+        { id: '2', year: '2023', color: 'bg-indigo-600', title: 'Hospitalization (Chest infection)', subtitle: 'Hospital Record' },
+        { id: '3', year: '2024', color: 'bg-sky-600', title: 'Cognitive concerns noted', subtitle: 'Caregiver Report' },
+        { id: '4', year: '2025', color: 'bg-blue-500', title: 'Mobility decline observed', subtitle: 'Doctor Note' },
+        { id: '5', year: '2026', color: 'bg-rose-500', title: '2 falls reported', subtitle: 'Caregiver Report' },
+      ];
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm h-full flex flex-col">
       <div className="flex items-center justify-between mb-8">
@@ -11,7 +40,7 @@ export function PatientJourney() {
           </div>
           <div>
             <h3 className="text-lg font-bold text-slate-900 tracking-tight">Patient Journey</h3>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">A chronological view of key health events</p>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">A chronological view of longitudinal health events</p>
           </div>
         </div>
         <button className="text-blue-600 hover:text-blue-700 font-bold text-xs flex items-center gap-1.5 hover:gap-2 transition-all bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
@@ -26,11 +55,15 @@ export function PatientJourney() {
         
         {/* Years & Nodes */}
         <div className="flex justify-between w-full min-w-[600px] relative z-10 px-4 -mt-16">
-          <TimelineNode year="2022" color="bg-blue-600" title="Diabetes diagnosed" subtitle="Clinic Visit" />
-          <TimelineNode year="2023" color="bg-indigo-600" title="Hospitalization (Chest infection)" subtitle="Hospital Record" />
-          <TimelineNode year="2024" color="bg-sky-600" title="Cognitive concerns" subtitle="Caregiver Report" />
-          <TimelineNode year="2025" color="bg-blue-500" title="Mobility decline observed" subtitle="Doctor Note" />
-          <TimelineNode year="2026" color="bg-rose-500" title="2 falls reported" subtitle="Caregiver Report" />
+          {displayNodes.map(node => (
+            <TimelineNode 
+              key={node.id} 
+              year={node.year} 
+              color={node.color} 
+              title={node.title} 
+              subtitle={node.subtitle} 
+            />
+          ))}
         </div>
       </div>
 

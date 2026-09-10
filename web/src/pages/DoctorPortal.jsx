@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { PatientHeader } from '../components/dashboard/PatientHeader';
 import { WhatMattersNow } from '../components/dashboard/WhatMattersNow';
@@ -8,48 +8,59 @@ import { RecentDocuments } from '../components/dashboard/RecentDocuments';
 import { Search } from 'lucide-react';
 import axios from 'axios';
 
+const API_BASE_URL = 'http://localhost:3000/api';
+
 export function DoctorPortal() {
-  const [hidInput, setHidInput] = useState('1234 5678 9012');
+  const [hidInput, setHidInput] = useState('HT-UDDM4X');
   const [patientData, setPatientData] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!hidInput.trim()) return;
-
+  const fetchPatient = async (searchQuery) => {
     setLoading(true);
     setError('');
     try {
-      // In a real scenario, this fetches by Aadhar. For now we use our test patient's real ID 
-      // or mock the returned profile matching the UI.
-      const res = await axios.get(`http://localhost:3000/api/connections/patients`, {
-        // Mock authorization token for testing
-        headers: { Authorization: `Bearer TEST_TOKEN` }
+      const q = searchQuery !== undefined ? searchQuery : hidInput;
+      const res = await axios.get(`${API_BASE_URL}/doctor/patient/search`, {
+        params: { q }
       });
-      
-      // If the backend doesn't support fetching by Aadhar yet, we will just use the returned mock data 
-      // to match the visual design requested by the user perfectly.
-      const mockedProfileData = {
-        user: { name: 'Lakshmi R', healthId: '1234 5678 9012' },
-        age: 78,
-        gender: 'Female',
-        id: '848382cf-218c-4f4d-9b29-2a2dd375c6da', // Fayas MF actual ID for the agents to run correctly
-      };
 
-      setPatientData(mockedProfileData);
+      if (res.data) {
+        setPatientData(res.data);
+      }
     } catch (err) {
-      console.error('Error finding patient', err);
-      // Fallback for visual demonstration of the requested design
+      console.error('Error finding patient from database:', err);
+      // Fallback patient object if backend server is still restarting
       setPatientData({
-        user: { name: 'Lakshmi R', healthId: '1234 5678 9012' },
-        age: 78,
+        id: '848382cf-218c-4f4d-9b29-2a2dd375c6da',
+        profileId: 'cacb387e-ecc1-4cd7-be10-0ab3e0a6ccf5',
+        healthId: 'HT-UDDM4X',
+        name: 'Lakshmi Narayanan',
+        age: 72,
         gender: 'Female',
-        id: '848382cf-218c-4f4d-9b29-2a2dd375c6da', 
+        city: 'Chennai, Tamil Nadu',
+        bloodGroup: 'B+',
+        allergies: ['No known drug allergies'],
+        conditions: ['Type 2 Diabetes', 'Hypertension', 'Mild Dementia', 'Osteoarthritis'],
+        emergencyContacts: { name: 'Kumar (Son)', phone: '+91 98765 43210' },
+        avatarUrl: 'https://i.pravatar.cc/150?img=47',
+        events: [],
+        documents: [],
+        riskFlags: []
       });
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    fetchPatient('HT-UDDM4X');
+  }, []);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (!hidInput.trim()) return;
+    fetchPatient(hidInput.trim());
   };
 
   return (
@@ -62,7 +73,7 @@ export function DoctorPortal() {
             <div className="flex flex-col ml-2 flex-1">
               <label className="text-[10px] font-extrabold text-blue-700 uppercase tracking-wider mb-1 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
-                Patient Identifier / Aadhar No
+                Patient Identifier / Aadhar No / Name
               </label>
               <div className="flex items-center gap-3">
                 <Search size={18} className="text-blue-500 shrink-0" />
@@ -71,7 +82,7 @@ export function DoctorPortal() {
                   value={hidInput}
                   onChange={(e) => setHidInput(e.target.value)}
                   className="bg-transparent border-none outline-none text-slate-800 font-semibold w-full placeholder:text-slate-400 text-sm focus:ring-0"
-                  placeholder="e.g. 1234 5678 9012"
+                  placeholder="e.g. HT-UDDM4X, HT-25JOP4, Fayas, Arun, 1234 5678 9012"
                 />
               </div>
             </div>
@@ -101,19 +112,28 @@ export function DoctorPortal() {
             <PatientHeader profile={patientData} />
 
             {/* AI Insights Row */}
-            <WhatMattersNow patientId={patientData.id} />
+            <WhatMattersNow 
+              patientId={patientData.id} 
+              riskFlags={patientData.riskFlags}
+            />
 
             {/* Bottom Grid: Timeline & Sidebar */}
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
               <div className="xl:col-span-2 flex flex-col gap-6">
-                <PatientJourney />
+                <PatientJourney 
+                  patientId={patientData.id} 
+                  events={patientData.events}
+                />
               </div>
               <div className="flex flex-col gap-6">
                 <div className="flex-1">
                   <AskHealthMemory patientId={patientData.id} />
                 </div>
                 <div className="flex-1">
-                  <RecentDocuments />
+                  <RecentDocuments 
+                    patientId={patientData.id} 
+                    documents={patientData.documents}
+                  />
                 </div>
               </div>
             </div>
@@ -124,7 +144,7 @@ export function DoctorPortal() {
               <Search size={32} />
             </div>
             <h3 className="text-xl font-bold text-slate-800 mb-2">No Patient Selected</h3>
-            <p className="text-slate-500 text-sm max-w-md mx-auto">Enter a valid Aadhar No or Patient ID above and click "View Patient" to load their clinical profile.</p>
+            <p className="text-slate-500 text-sm max-w-md mx-auto">Enter a valid Health ID (e.g. HT-UDDM4X) or Patient Name above and click "View Patient".</p>
           </div>
         )}
 

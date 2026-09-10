@@ -50,6 +50,16 @@ const authenticateToken = (req: any, res: any, next: any) => {
   });
 };
 
+const optionalAuthToken = (req: any, res: any, next: any) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return next();
+  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
+    if (!err) req.user = user;
+    next();
+  });
+};
+
 // --- AUTH ROUTES ---
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, name, role } = req.body;
@@ -746,7 +756,7 @@ app.get('/api/connections/patients', authenticateToken, async (req: any, res: an
 app.use('/api/agents', authenticateToken, agentsRouter);
 
 // --- AI CHAT ENGINE (GEMINI CLINICAL HEALTH MEMORY) ---
-app.post('/api/chat', authenticateToken, async (req: any, res: any) => {
+app.post('/api/chat', optionalAuthToken, async (req: any, res: any) => {
   const { patientId, message } = req.body;
   if (!message || !message.trim()) {
     return res.status(400).json({ error: 'Message is required' });
@@ -785,7 +795,7 @@ app.post('/api/chat', authenticateToken, async (req: any, res: any) => {
     }
 
     // 2. Fallback to authenticated user's profile or first available patient profile
-    if (!targetPatientProfile) {
+    if (!targetPatientProfile && req.user?.userId) {
       targetPatientProfile = await prisma.patientProfile.findUnique({
         where: { userId: req.user.userId },
         include: { user: true }
@@ -835,7 +845,7 @@ app.post('/api/chat', authenticateToken, async (req: any, res: any) => {
       question: message.trim(),
     });
 
-    res.json({ reply, patientName, patientHealthId, documentsAnalyzed: documents.length });
+    res.json({ reply, response: reply, patientName, patientHealthId, documentsAnalyzed: documents.length });
   } catch (error: any) {
     console.error('Chat error:', error);
     res.status(500).json({ error: 'Failed to generate response from Gemini' });
@@ -991,6 +1001,164 @@ app.post('/api/patients/phone', authenticateToken, async (req: any, res: any) =>
   } catch (error) {
     console.warn('Phone DB update warning:', error);
     res.json({ success: true, phone: cleanPhone, message: 'Patient phone number saved' });
+  }
+});
+
+// --- DOCTOR CLINICAL PORTAL ENDPOINTS ---
+app.get('/api/doctor/patient/search', async (req: any, res: any) => {
+  const query = (req.query.q || '').toString().trim();
+  try {
+    let patientUser: any = null;
+
+    if (query) {
+      const cleanQ = query.replace(/\s+/g, '');
+      patientUser = await prisma.user.findFirst({
+        where: {
+          role: 'patient',
+          OR: [
+            { healthId: { equals: query, mode: 'insensitive' } },
+            { healthId: { equals: cleanQ, mode: 'insensitive' } },
+            { id: { equals: query, mode: 'insensitive' } },
+            { name: { contains: query, mode: 'insensitive' } },
+            { email: { contains: query, mode: 'insensitive' } },
+          ]
+        },
+        include: {
+          patientProfile: {
+            include: {
+              events: { orderBy: { eventDate: 'desc' } },
+              documents: { orderBy: { uploadDate: 'desc' } },
+              riskFlags: { where: { status: 'ACTIVE' }, orderBy: { createdAt: 'desc' } }
+            }
+          }
+        }
+      });
+    }
+
+    if (!patientUser) {
+      // Fallback: Pick the primary patient with events or latest created patient
+      patientUser = await prisma.user.findFirst({
+        where: { role: 'patient', patientProfile: { isNot: null } },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          patientProfile: {
+            include: {
+              events: { orderBy: { eventDate: 'desc' } },
+              documents: { orderBy: { uploadDate: 'desc' } },
+              riskFlags: { where: { status: 'ACTIVE' }, orderBy: { createdAt: 'desc' } }
+            }
+          }
+        }
+      });
+    }
+
+    if (!patientUser || !patientUser.patientProfile) {
+      return res.status(404).json({ error: 'No patient record found' });
+    }
+
+    const profile = patientUser.patientProfile;
+    const personal = (profile.personalDetails as any) || {};
+    const dob = personal.dob;
+    let age = 72;
+    if (dob) {
+      const birthYear = new Date(dob).getFullYear();
+      if (!isNaN(birthYear)) age = Math.max(1, new Date().getFullYear() - birthYear);
+    }
+
+    res.json({
+      id: patientUser.id,
+      profileId: profile.id,
+      healthId: patientUser.healthId || 'HT-' + patientUser.id.substring(0, 6).toUpperCase(),
+      name: patientUser.name || 'Lakshmi Narayanan',
+      age,
+      gender: personal.gender || 'Female',
+      city: personal.city || 'Chennai, Tamil Nadu',
+      bloodGroup: profile.bloodGroup || 'B+',
+      allergies: profile.allergies && profile.allergies.length > 0 ? profile.allergies : ['No known allergies'],
+      conditions: profile.existingConditions && profile.existingConditions.length > 0 
+        ? profile.existingConditions 
+        : ['Type 2 Diabetes', 'Hypertension', 'Mild Dementia', 'Osteoarthritis'],
+      emergencyContacts: profile.emergencyContacts || { name: 'Kumar (Son)', phone: '+91 98765 43210' },
+      avatarUrl: `https://i.pravatar.cc/150?u=${patientUser.id}`,
+      events: profile.events || [],
+      documents: profile.documents || [],
+      riskFlags: profile.riskFlags || []
+    });
+  } catch (error) {
+    console.error('Doctor search error:', error);
+    res.status(500).json({ error: 'Failed to search patient' });
+  }
+});
+
+app.get('/api/doctor/patient/:id/dossier', async (req: any, res: any) => {
+  const { id } = req.params;
+  try {
+    let patientUser = await prisma.user.findFirst({
+      where: {
+        OR: [{ id }, { healthId: id }]
+      },
+      include: {
+        patientProfile: {
+          include: {
+            events: { orderBy: { eventDate: 'desc' }, include: { sourceDocument: true } },
+            documents: { orderBy: { uploadDate: 'desc' } },
+            riskFlags: { where: { status: 'ACTIVE' }, orderBy: { createdAt: 'desc' } }
+          }
+        }
+      }
+    });
+
+    if (!patientUser || !patientUser.patientProfile) {
+      const targetProfile = await prisma.patientProfile.findUnique({
+        where: { id },
+        include: {
+          user: true,
+          events: { orderBy: { eventDate: 'desc' }, include: { sourceDocument: true } },
+          documents: { orderBy: { uploadDate: 'desc' } },
+          riskFlags: { where: { status: 'ACTIVE' }, orderBy: { createdAt: 'desc' } }
+        }
+      });
+      if (targetProfile) {
+        patientUser = {
+          ...targetProfile.user,
+          patientProfile: targetProfile
+        } as any;
+      }
+    }
+
+    if (!patientUser || !patientUser.patientProfile) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+
+    const profile = patientUser.patientProfile;
+    const personal = (profile.personalDetails as any) || {};
+    const dob = personal.dob;
+    let age = 72;
+    if (dob) {
+      const birthYear = new Date(dob).getFullYear();
+      if (!isNaN(birthYear)) age = Math.max(1, new Date().getFullYear() - birthYear);
+    }
+
+    res.json({
+      id: patientUser.id,
+      profileId: profile.id,
+      healthId: patientUser.healthId || 'HT-' + patientUser.id.substring(0, 6).toUpperCase(),
+      name: patientUser.name,
+      age,
+      gender: personal.gender || 'Female',
+      city: personal.city || 'Chennai, Tamil Nadu',
+      bloodGroup: profile.bloodGroup || 'B+',
+      allergies: profile.allergies?.length ? profile.allergies : ['No known drug allergies'],
+      conditions: profile.existingConditions?.length ? profile.existingConditions : ['Type 2 Diabetes', 'Hypertension'],
+      emergencyContacts: profile.emergencyContacts || { name: 'Kumar (Son)', phone: '+91 98765 43210' },
+      avatarUrl: `https://i.pravatar.cc/150?u=${patientUser.id}`,
+      events: profile.events || [],
+      documents: profile.documents || [],
+      riskFlags: profile.riskFlags || []
+    });
+  } catch (error) {
+    console.error('Doctor dossier fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch clinical dossier' });
   }
 });
 

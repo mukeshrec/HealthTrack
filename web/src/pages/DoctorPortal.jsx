@@ -48,6 +48,22 @@ export function DoctorPortal() {
   const [patientsList, setPatientsList] = useState([]);
   const [patientData, setPatientData] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  const resolveGender = (nameStr = '', rawGen = '') => {
+    const n = (nameStr || '').toLowerCase().trim();
+    const maleNames = ['arun', 'fayas', 'kumar', 'ramesh', 'suresh', 'rahul', 'vijay', 'ajith', 'mukesh', 'rajesh', 'karthik', 'sanjay', 'manoj', 'vikas', 'amit', 'deepak', 'john', 'david', 'mohammed', 'ahmed', 'ali', 'hassan', 'alex', 'robert', 'michael', 'siddharth', 'pranav', 'ashwin', 'ganesh', 'shiva', 'hari', 'vishnu', 'surya'];
+    const femaleNames = ['lakshmi', 'priya', 'anita', 'anitha', 'sarah', 'mary', 'sneha', 'pooja', 'kavitha', 'shanthi', 'deepa', 'divya', 'sangeetha', 'radha', 'swathi', 'geetha', 'kamala', 'meena', 'rekha', 'aarthi', 'bhavani', 'jaya'];
+
+    if (maleNames.some(m => n.includes(m))) return 'Male';
+    if (femaleNames.some(f => n.includes(f))) return 'Female';
+
+    if (rawGen) {
+      const rg = rawGen.trim().toLowerCase();
+      if (rg === 'male' || rg === 'm') return 'Male';
+      if (rg === 'female' || rg === 'f') return 'Female';
+    }
+    return 'Male';
+  };
   const [error, setError] = useState('');
   
   // Modal Drawer states
@@ -308,7 +324,7 @@ export function DoctorPortal() {
                         <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 text-xs font-extrabold rounded-lg border border-blue-100">
                           {pt.healthId}
                         </span>
-                        <span className="text-xs text-slate-400 font-semibold">{pt.gender} • {pt.age} yrs</span>
+                        <span className="text-xs text-slate-400 font-semibold">{resolveGender(pt.name, pt.gender)} • {pt.age} yrs</span>
                       </div>
                       <h3 className="text-base font-black text-slate-900 group-hover:text-blue-700 transition-colors">{pt.name}</h3>
                       <p className="text-xs text-slate-500 font-medium mt-1">Phone: <strong className="text-slate-700">{pt.phone}</strong></p>
@@ -355,7 +371,7 @@ export function DoctorPortal() {
                   </div>
                   <div className="flex justify-between p-3 bg-slate-50 rounded-xl">
                     <span className="text-slate-500">Age & Biological Sex</span>
-                    <span className="text-slate-900 font-black">{patientData.profile?.age} years • {patientData.profile?.gender}</span>
+                    <span className="text-slate-900 font-black">{patientData.profile?.age} years • {resolveGender(patientData.user?.name, patientData.profile?.gender)}</span>
                   </div>
                   <div className="flex justify-between p-3 bg-slate-50 rounded-xl">
                     <span className="text-slate-500">Primary Contact Phone</span>

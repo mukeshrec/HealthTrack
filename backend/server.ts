@@ -72,6 +72,24 @@ const authenticateToken = (req: any, res: any, next: any) => {
   });
 };
 
+export const resolveGender = (name: string = '', rawGender?: string): string => {
+  const n = (name || '').toLowerCase().trim();
+  
+  const maleNames = ['arun', 'fayas', 'kumar', 'ramesh', 'suresh', 'rahul', 'vijay', 'ajith', 'mukesh', 'rajesh', 'karthik', 'sanjay', 'manoj', 'vikas', 'amit', 'deepak', 'john', 'david', 'mohammed', 'ahmed', 'ali', 'hassan', 'alex', 'robert', 'michael', 'siddharth', 'pranav', 'ashwin', 'ganesh', 'shiva', 'hari', 'vishnu', 'surya'];
+  const femaleNames = ['lakshmi', 'priya', 'anita', 'anitha', 'sarah', 'mary', 'sneha', 'pooja', 'kavitha', 'shanthi', 'deepa', 'divya', 'sangeetha', 'radha', 'swathi', 'geetha', 'kamala', 'meena', 'rekha', 'aarthi', 'bhavani', 'jaya'];
+
+  if (maleNames.some(m => n.includes(m))) return 'Male';
+  if (femaleNames.some(f => n.includes(f))) return 'Female';
+
+  if (rawGender) {
+    const rg = rawGender.trim().toLowerCase();
+    if (rg === 'male' || rg === 'm') return 'Male';
+    if (rg === 'female' || rg === 'f') return 'Female';
+  }
+
+  return 'Male';
+};
+
 // --- AUTH ROUTES ---
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, name, role } = req.body;
@@ -823,7 +841,7 @@ app.get('/api/doctor/patients', authenticateToken, async (req: any, res: any) =>
         healthId: u.healthId || 'HT-' + u.id.slice(0, 6).toUpperCase(),
         phone: phone,
         age: age || 78,
-        gender: details.gender || 'Female',
+        gender: resolveGender(u.name, details.gender || (prof as any)?.gender),
         bloodGroup: prof?.bloodGroup || 'B+',
         allergies: prof?.allergies || ['No known allergies'],
         existingConditions: prof?.existingConditions?.length ? prof.existingConditions : ['Type 2 Diabetes', 'Hypertension', 'Mild Dementia', 'Osteoarthritis'],
@@ -984,7 +1002,7 @@ app.get('/api/doctor/patients/:patientId/full-profile', authenticateToken, async
       profile: {
         id: prof?.id,
         age: age || 78,
-        gender: details.gender || 'Female',
+        gender: resolveGender(patientUser.name, details.gender || (prof as any)?.gender),
         bloodGroup: prof?.bloodGroup || 'B+',
         allergies: prof?.allergies?.length ? prof.allergies : ['No known drug allergies'],
         existingConditions: prof?.existingConditions?.length ? prof.existingConditions : ['Type 2 Diabetes', 'Hypertension', 'Mild Dementia', 'Osteoarthritis'],
@@ -1283,7 +1301,7 @@ app.get('/api/doctor/patients', authenticateToken, async (req: any, res: any) =>
       const pDetails = (profile?.personalDetails as any) || {};
       const age = pDetails.age || (profile as any)?.age || 78;
       const rawGender = pDetails.gender || (profile as any)?.gender;
-      const gender = rawGender ? rawGender : (p.name?.toLowerCase().includes('lakshmi') ? 'Female' : 'Male');
+      const gender = resolveGender(p.name, rawGender);
       const phone = pDetails.phone || (p as any).phone || patientPhoneStore[p.id] || patientPhoneStore[p.healthId || ''] || '+91 98765 43210';
       const bloodGroup = (profile as any)?.bloodGroup || 'B+';
       const allergies = (profile as any)?.allergies || ['No known allergies'];
@@ -1395,7 +1413,7 @@ app.get('/api/doctor/patients/:patientId/full-profile', authenticateToken, async
     const pDetails = (profile?.personalDetails as any) || {};
     const age = pDetails.age || profile?.age || 78;
     const rawGender = pDetails.gender || profile?.gender;
-    const gender = rawGender ? rawGender : (user.name?.toLowerCase().includes('lakshmi') ? 'Female' : 'Male');
+    const gender = resolveGender(user.name, rawGender);
     const phone = pDetails.phone || (user as any).phone || patientPhoneStore[user.id] || patientPhoneStore[user.healthId || ''] || '+91 98765 43210';
     const bloodGroup = profile?.bloodGroup || 'B+';
     const allergies = profile?.allergies || ['No known acute allergies'];

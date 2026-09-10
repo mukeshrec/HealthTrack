@@ -146,13 +146,29 @@ export async function analyzePatientWithGemini(patientIdentifier: string) {
     .map((d: any) => `[${d.category || 'Report'}] ${d.fileName || 'Doc'}: ${d.summary || d.extractedText?.slice(0, 150) || ''}`)
     .join('\n') || 'None recorded';
 
+function resolveGender(name: string = '', rawGender?: string): string {
+  const n = (name || '').toLowerCase().trim();
+  const maleNames = ['arun', 'fayas', 'kumar', 'ramesh', 'suresh', 'rahul', 'vijay', 'ajith', 'mukesh', 'rajesh', 'karthik', 'sanjay', 'manoj', 'vikas', 'amit', 'deepak', 'john', 'david', 'mohammed', 'ahmed', 'ali', 'hassan', 'alex', 'robert', 'michael', 'siddharth', 'pranav', 'ashwin', 'ganesh', 'shiva', 'hari', 'vishnu', 'surya'];
+  const femaleNames = ['lakshmi', 'priya', 'anita', 'anitha', 'sarah', 'mary', 'sneha', 'pooja', 'kavitha', 'shanthi', 'deepa', 'divya', 'sangeetha', 'radha', 'swathi', 'geetha', 'kamala', 'meena', 'rekha', 'aarthi', 'bhavani', 'jaya'];
+
+  if (maleNames.some(m => n.includes(m))) return 'Male';
+  if (femaleNames.some(f => n.includes(f))) return 'Female';
+
+  if (rawGender) {
+    const rg = rawGender.trim().toLowerCase();
+    if (rg === 'male' || rg === 'm') return 'Male';
+    if (rg === 'female' || rg === 'f') return 'Female';
+  }
+  return 'Male';
+}
+
   // 2. High-speed Clinical Grounding Prompt
   const prompt = `
 You are an expert Geriatric Clinical Decision Support & Pharmacotherapy AI.
 Analyze the following authentic patient data retrieved directly from the common medical database:
 
 PATIENT:
-Name: ${user.name} | Age: ${pDetails.age || profile.age || 78} | Gender: ${pDetails.gender || profile.gender || 'Male'}
+Name: ${user.name} | Age: ${pDetails.age || profile.age || 78} | Gender: ${resolveGender(user.name, pDetails.gender || profile.gender)}
 Conditions: ${conditions}
 Allergies: ${allergies}
 

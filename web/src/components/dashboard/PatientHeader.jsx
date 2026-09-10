@@ -11,8 +11,24 @@ export function PatientHeader({ profile }) {
   const age = patientDetails.age || 20;
   
   // Resolve gender correctly
+  const resolveGender = (nameStr = '', rawGen = '') => {
+    const n = (nameStr || '').toLowerCase().trim();
+    const maleNames = ['arun', 'fayas', 'kumar', 'ramesh', 'suresh', 'rahul', 'vijay', 'ajith', 'mukesh', 'rajesh', 'karthik', 'sanjay', 'manoj', 'vikas', 'amit', 'deepak', 'john', 'david', 'mohammed', 'ahmed', 'ali', 'hassan', 'alex', 'robert', 'michael', 'siddharth', 'pranav', 'ashwin', 'ganesh', 'shiva', 'hari', 'vishnu', 'surya'];
+    const femaleNames = ['lakshmi', 'priya', 'anita', 'anitha', 'sarah', 'mary', 'sneha', 'pooja', 'kavitha', 'shanthi', 'deepa', 'divya', 'sangeetha', 'radha', 'swathi', 'geetha', 'kamala', 'meena', 'rekha', 'aarthi', 'bhavani', 'jaya'];
+
+    if (maleNames.some(m => n.includes(m))) return 'Male';
+    if (femaleNames.some(f => n.includes(f))) return 'Female';
+
+    if (rawGen) {
+      const rg = rawGen.trim().toLowerCase();
+      if (rg === 'male' || rg === 'm') return 'Male';
+      if (rg === 'female' || rg === 'f') return 'Female';
+    }
+    return 'Male';
+  };
+
   const rawGender = patientDetails.gender || user.gender || patientDetails.personalDetails?.gender;
-  const gender = rawGender && rawGender !== 'Female' ? rawGender : (name.toLowerCase().includes('fayas') ? 'Male' : (rawGender || 'Male'));
+  const gender = resolveGender(name, rawGender);
   
   const bloodGroup = patientDetails.bloodGroup || 'B+';
   const allergies = Array.isArray(patientDetails.allergies) 

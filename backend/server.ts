@@ -37,6 +37,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 // Serve uploaded files statically
 app.use('/uploads', express.static(uploadDir));
+app.use('/api/agents', agentsRouter);
 
 // Auth Middleware (Supports Mobile App & Doctor Web Portal)
 const authenticateToken = (req: any, res: any, next: any) => {
@@ -1470,18 +1471,26 @@ app.get('/api/doctor/patients/:patientId/full-profile', authenticateToken, async
       { id: 'med-4', name: 'Calcium + Vitamin D3', dosage: '500mg/400IU', instruction: 'After lunch', slot: 'Afternoon', time: '01:00 PM', source: 'Orthopedic Note (22 Feb 2025)' }
     ];
 
-    // Format risk flags
-    const formattedRisks = ((profile?.riskFlags as any[]) || []).map((rf: any) => ({
-      id: rf.id,
-      title: rf.title,
-      description: rf.description,
-      severity: rf.severity,
-      agentType: rf.agentType,
-      resolved: rf.status === 'RESOLVED' || rf.resolved,
-      createdAt: rf.createdAt,
-    }));
+    // Format risk flags with strict deduplication
+    const seenRiskTitles = new Set();
+    const formattedRisks: any[] = [];
+    for (const rf of ((profile?.riskFlags as any[]) || [])) {
+      const key = (rf.title || '').trim().toLowerCase();
+      if (!seenRiskTitles.has(key)) {
+        seenRiskTitles.add(key);
+        formattedRisks.push({
+          id: rf.id,
+          title: rf.title,
+          description: rf.description,
+          severity: rf.severity,
+          agentType: rf.agentType,
+          resolved: rf.status === 'RESOLVED' || rf.resolved,
+          createdAt: rf.createdAt,
+        });
+      }
+    }
 
-    const displayRisks = formattedRisks.length > 0 ? formattedRisks : [
+    const displayRisks = formattedRisks.length > 0 ? formattedRisks.slice(0, 3) : [
       { id: 'rf-1', severity: 'HIGH', title: '2 falls reported in the last 30 days', description: 'Previous: 0 falls | Recent: 2 non-syncopal falls. High risk of recurring fall injuries.', agentType: 'FALL_RISK' },
       { id: 'rf-2', severity: 'MEDIUM', title: 'Increasing confusion & disorientation', description: 'More frequent caregiver observations of short-term memory lapses compared to baseline.', agentType: 'DECLINE_TRAJECTORY' },
       { id: 'rf-3', severity: 'MEDIUM', title: 'Medication transition logged', description: 'Amlodipine discontinued, Telmisartan 40mg initiated on 12 Aug 2026.', agentType: 'POLYPHARMACY' }

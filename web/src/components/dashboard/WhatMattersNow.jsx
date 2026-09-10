@@ -38,29 +38,40 @@ export function WhatMattersNow({ patientId, initialRisks = [], onViewEvidence, o
     }
   };
 
-  const displayRisks = risks.length > 0 ? risks : [
+  // Strict deduplication by title so identical cards never repeat
+  const uniqueRisks = [];
+  const seenTitles = new Set();
+  for (const r of (risks || [])) {
+    const key = (r.title || '').trim().toLowerCase();
+    if (!seenTitles.has(key)) {
+      seenTitles.add(key);
+      uniqueRisks.push(r);
+    }
+  }
+
+  const displayRisks = (uniqueRisks.length > 0 ? uniqueRisks : [
     {
       id: 'mock-1',
       severity: 'HIGH',
-      title: '2 falls reported in the last 30 days',
-      description: 'Previous: 0 falls | Recent: 2 non-syncopal falls near bathroom entrance.',
-      agentType: 'FALL_RISK'
+      title: 'Critical Bleeding Risk: Warfarin & Duplicate Aspirin',
+      description: 'Patient is prescribed Warfarin with concurrent antiplatelet Aspirin. Increases major bleeding risk in older adults.',
+      agentType: 'POLYPHARMACY'
     },
     {
       id: 'mock-2',
-      severity: 'MEDIUM',
-      title: 'Increasing confusion & disorientation',
-      description: 'More frequent caregiver observations compared to previous 3 months baseline.',
+      severity: 'HIGH',
+      title: 'Elevated Fall Risk & Cognitive Trajectory',
+      description: 'Multiple fall incidents and confusion episodes observed over recent months. Requires mobility safety review.',
       agentType: 'DECLINE_TRAJECTORY'
     },
     {
       id: 'mock-3',
       severity: 'MEDIUM',
-      title: 'Medication transition logged',
-      description: 'Amlodipine discontinued, Telmisartan 40mg initiated on 12 Aug 2026.',
-      agentType: 'POLYPHARMACY'
+      title: 'Active Multi-condition Monitoring',
+      description: 'Ongoing Type 2 Diabetes and Hypertension management. Monitor blood glucose, BP, and renal function regularly.',
+      agentType: 'CARE_GAP'
     }
-  ];
+  ]).slice(0, 3);
 
   const getIcon = (agentType = '') => {
     const t = agentType.toUpperCase();

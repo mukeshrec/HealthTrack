@@ -272,7 +272,7 @@ app.delete('/api/memory/clear-all', authenticateToken, async (req: any, res: any
   }
 });
 
-// Get extracted medications and schedule from Health Memory
+// Get extracted medications, AI prescription summary, and schedules from Health Memory
 app.get('/api/memory/medications', authenticateToken, async (req: any, res: any) => {
   const { patientId } = req.query;
   try {
@@ -305,7 +305,11 @@ app.get('/api/memory/medications', authenticateToken, async (req: any, res: any)
     }
 
     if (!targetProfile) {
-      return res.json([]);
+      return res.json({
+        prescriptionSummary: 'No patient profile found.',
+        medicines: [],
+        schedules: []
+      });
     }
 
     // Fetch medication events and documents
@@ -326,63 +330,187 @@ app.get('/api/memory/medications', authenticateToken, async (req: any, res: any)
       orderBy: { uploadDate: 'desc' }
     });
 
-    const schedules: any[] = [];
-
     // Helper to determine timing slot
     const determineSlotAndTiming = (desc: string, meta: any) => {
       const text = `${desc} ${JSON.stringify(meta || {})}`.toLowerCase();
-      if (text.includes('night') || text.includes('bedtime') || text.includes('dinner') || text.includes('pm') || text.includes('evening')) {
-        return { time: '08:30 PM', slot: 'Night', instruction: text.includes('before food') ? 'Before Dinner' : 'After Dinner' };
-      } else if (text.includes('afternoon') || text.includes('lunch') || text.includes('noon')) {
-        return { time: '01:30 PM', slot: 'Afternoon', instruction: 'After Lunch' };
+      if (text.includes('night') || text.includes('bedtime') || text.includes('dinner') || text.includes('pm') || text.includes('evening') || text.includes('08:30 pm')) {
+        return { time: '08:30 PM', slot: 'Night' as const, instruction: text.includes('before food') ? 'Before Dinner' : 'After Dinner' };
+      } else if (text.includes('afternoon') || text.includes('lunch') || text.includes('noon') || text.includes('01:30 pm')) {
+        return { time: '01:30 PM', slot: 'Afternoon' as const, instruction: 'After Lunch' };
       } else {
-        return { time: '08:00 AM', slot: 'Morning', instruction: text.includes('before food') ? 'Before Breakfast' : 'After Breakfast' };
+        return { time: '08:00 AM', slot: 'Morning' as const, instruction: text.includes('before food') ? 'Before Breakfast' : 'After Breakfast' };
       }
     };
 
+    const medicinesMap = new Map<string, any>();
+    const schedules: any[] = [];
+
     // 1. Process structured HealthEvents
     medEvents.forEach((ev: any) => {
-      const timingInfo = determineSlotAndTiming(ev.description || '', ev.metadata);
-      schedules.push({
+      const meta = (ev.metadata as any) || {};
+      const cleanName = ev.title.replace(/^Prescription:\s*/i, '').trim();
+      const timingInfo = determineSlotAndTiming(ev.description || '', meta);
+      const isScheduled = meta.isScheduled === true || meta.scheduledTime !== undefined;
+
+      const medObj = {
         id: ev.id,
-        name: ev.title.replace(/^Prescription:\s*/i, ''),
-        dosage: ev.metadata?.dosage || '1 tablet',
-        time: timingInfo.time,
-        slot: timingInfo.slot,
-        instruction: ev.metadata?.instructions || timingInfo.instruction,
-        source: ev.sourceDocument?.fileName || 'Extracted Prescription',
+        name: cleanName,
+        dosage: meta.dosage || '1 tablet',
+        instruction: meta.instructions || timingInfo.instruction,
+        suggestedSlot: timingInfo.slot,
+        suggestedTime: meta.scheduledTime || timingInfo.time,
+        source: ev.sourceDocument?.fileName || 'Prescription Record',
         prescribedDate: ev.eventDate ? new Date(ev.eventDate).toLocaleDateString() : 'Active',
-        taken: false
-      });
+        isScheduled,
+      };
+
+      if (!medicinesMap.has(cleanName.toLowerCase())) {
+        medicinesMap.set(cleanName.toLowerCase(), medObj);
+      }
+
+      if (isScheduled) {
+        schedules.push({
+          id: ev.id,
+          name: cleanName,
+          dosage: meta.dosage || '1 tablet',
+          time: meta.scheduledTime || timingInfo.time,
+          slot: meta.scheduledSlot || timingInfo.slot,
+          instruction: meta.instructions || timingInfo.instruction,
+          source: ev.sourceDocument?.fileName || 'Prescription Record',
+          prescribedDate: ev.eventDate ? new Date(ev.eventDate).toLocaleDateString() : 'Active',
+          taken: meta.taken === true
+        });
+      }
     });
 
-    // 2. If no direct events yet, parse from uploaded documents with extractedText
-    if (schedules.length === 0 && docs.length > 0) {
+    // 2. Parse uploaded documents text if any additional medicines exist
+    if (docs.length > 0) {
       docs.forEach((doc: any) => {
         const rawText = doc.extractedText || '';
         const matches = rawText.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(\d+\s*(?:mg|ml|mcg|g|iu|tablet|tab|cap))/gi);
         if (matches && matches.length > 0) {
-          matches.slice(0, 5).forEach((mStr: string, idx: number) => {
-            schedules.push({
-              id: `${doc.id}-med-${idx}`,
-              name: mStr.trim(),
-              dosage: mStr.trim(),
-              time: idx === 0 ? '08:00 AM' : idx === 1 ? '01:30 PM' : '08:30 PM',
-              slot: idx === 0 ? 'Morning' : idx === 1 ? 'Afternoon' : 'Night',
-              instruction: idx === 0 ? 'Before Breakfast' : 'After Food',
-              source: doc.fileName || 'Uploaded Prescription',
-              prescribedDate: new Date(doc.uploadDate).toLocaleDateString(),
-              taken: false
-            });
+          matches.forEach((mStr: string, idx: number) => {
+            const cleanName = mStr.trim();
+            if (!medicinesMap.has(cleanName.toLowerCase())) {
+              const suggestedSlot = idx % 3 === 0 ? 'Morning' : idx % 3 === 1 ? 'Afternoon' : 'Night';
+              const suggestedTime = idx % 3 === 0 ? '08:00 AM' : idx % 3 === 1 ? '01:30 PM' : '08:30 PM';
+              const suggestedInstruction = idx % 3 === 0 ? 'Before Breakfast' : idx % 3 === 1 ? 'After Lunch' : 'After Dinner';
+              
+              medicinesMap.set(cleanName.toLowerCase(), {
+                id: `${doc.id}-med-${idx}`,
+                name: cleanName,
+                dosage: cleanName.split(/\s+/).slice(1).join(' ') || '1 tablet',
+                instruction: suggestedInstruction,
+                suggestedSlot,
+                suggestedTime,
+                source: doc.fileName || 'Uploaded Prescription',
+                prescribedDate: new Date(doc.uploadDate).toLocaleDateString(),
+                isScheduled: false,
+              });
+            }
           });
         }
       });
     }
 
-    res.json(schedules);
+    const medicinesList = Array.from(medicinesMap.values());
+
+    // 3. Build optimized clinical Prescription Summary
+    let prescriptionSummary = '';
+    const summariesFromDocs = docs.filter((d: any) => d.summary).map((d: any) => d.summary);
+    
+    if (summariesFromDocs.length > 0) {
+      prescriptionSummary = summariesFromDocs.join(' • ');
+    } else if (medicinesList.length > 0) {
+      prescriptionSummary = `Active clinical prescription includes ${medicinesList.length} prescribed medication${medicinesList.length > 1 ? 's' : ''}: ${medicinesList.map((m: any) => m.name).join(', ')}. Adhere to prescribed dosages and meal timings for optimal therapeutic efficacy.`;
+    } else {
+      prescriptionSummary = 'No active prescription records found. Upload a prescription document or add entries to configure the schedule.';
+    }
+
+    res.json({
+      prescriptionSummary,
+      medicines: medicinesList,
+      schedules
+    });
   } catch (error) {
     console.error('Medications fetch error:', error);
     res.status(500).json({ error: 'Failed to fetch medications' });
+  }
+});
+
+// Create or update scheduled medication dose
+app.post('/api/memory/schedules', authenticateToken, async (req: any, res: any) => {
+  const { patientId, medicineId, name, dosage, time, slot, instruction, source, taken } = req.body;
+  try {
+    let targetProfile: any = null;
+    if (patientId) {
+      const patientUser = await prisma.user.findFirst({
+        where: { OR: [{ id: patientId }, { healthId: patientId }] },
+        include: { patientProfile: true }
+      });
+      targetProfile = patientUser?.patientProfile || await prisma.patientProfile.findUnique({ where: { id: patientId } });
+    }
+    if (!targetProfile) {
+      targetProfile = await prisma.patientProfile.findUnique({ where: { userId: req.user.userId } });
+    }
+    if (!targetProfile) {
+      targetProfile = await prisma.patientProfile.findFirst({ orderBy: { createdAt: 'desc' } });
+    }
+    if (!targetProfile) {
+      return res.status(404).json({ error: 'Patient profile not found' });
+    }
+
+    // Check if event already exists
+    let event: any = null;
+    if (medicineId && !medicineId.includes('-med-')) {
+      event = await prisma.healthEvent.findUnique({ where: { id: medicineId } });
+    }
+
+    if (event) {
+      const updatedEvent = await prisma.healthEvent.update({
+        where: { id: event.id },
+        data: {
+          title: `Prescription: ${name}`,
+          description: `${dosage} - ${slot} at ${time} (${instruction})`,
+          metadata: {
+            ...((event.metadata as any) || {}),
+            dosage,
+            instructions: instruction,
+            scheduledTime: time,
+            scheduledSlot: slot,
+            isScheduled: true,
+            taken: taken ?? false,
+          }
+        }
+      });
+      return res.json(updatedEvent);
+    } else {
+      const newEvent = await prisma.healthEvent.create({
+        data: {
+          patientId: targetProfile.id,
+          eventType: 'Medication',
+          eventDate: new Date(),
+          isFuture: false,
+          title: `Prescription: ${name}`,
+          description: `${dosage} - ${slot} at ${time} (${instruction})`,
+          provenance: req.user.role === 'patient' ? 'PATIENT_REPORTED' : 'CAREGIVER_REPORTED',
+          verificationStatus: 'VERIFIED',
+          metadata: {
+            dosage,
+            instructions: instruction,
+            scheduledTime: time,
+            scheduledSlot: slot,
+            isScheduled: true,
+            taken: taken ?? false,
+            source: source || 'Configured via Caregiver Schedule'
+          }
+        }
+      });
+      return res.json(newEvent);
+    }
+  } catch (error) {
+    console.error('Schedule save error:', error);
+    res.status(500).json({ error: 'Failed to save medication schedule' });
   }
 });
 

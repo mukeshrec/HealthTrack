@@ -10,6 +10,7 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import { extractHealthEventsFromDocument, generateHealthMemoryChatResponse } from './src/services/llm';
+import agentsRouter from './src/routes/agents.routes';
 
 const app = express();
 const prisma = new PrismaClient();
@@ -379,6 +380,8 @@ app.get('/api/connections/patients', authenticateToken, async (req: any, res: an
     res.json(patients);
   } catch (error) { res.status(500).json({ error: 'Failed to fetch linked patients' }); }
 });
+
+app.use('/api/agents', authenticateToken, agentsRouter);
 
 // --- AI CHAT ENGINE (GEMINI CLINICAL HEALTH MEMORY) ---
 app.post('/api/chat', authenticateToken, async (req: any, res: any) => {

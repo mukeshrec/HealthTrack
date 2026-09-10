@@ -25,6 +25,7 @@ import { colors, typography, spacing, borderRadius, shadows } from '../../theme'
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../common/Button';
 import { Avatar } from '../common';
+import { ActiveRiskAlerts } from './../common/ActiveRiskAlerts';
 import { API_BASE_URL, delay } from '../../config/api';
 
 export function CaregiverDashboard() {
@@ -110,6 +111,11 @@ export function CaregiverDashboard() {
           <Text style={styles.patientIdText}>Health ID: {item.healthId}</Text>
           <Text style={styles.statusSnippet}>{item.lastUpdate || 'Vitals stable today'}</Text>
         </View>
+      </View>
+
+      {/* AI Risk Alerts for this specific patient */}
+      <View style={{ paddingHorizontal: spacing.sm, paddingBottom: spacing.sm }}>
+        <ActiveRiskAlerts patientId={item.id} token={token} />
       </View>
 
       <View style={styles.cardActionsRow}>

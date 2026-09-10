@@ -1,19 +1,26 @@
 import React from 'react';
 import { Home, Search, User, HeartPulse, MessageSquare, Clock, Pill, FileText, Calendar, AlertTriangle, Settings, ShieldCheck, Activity } from 'lucide-react';
 
-export function Sidebar() {
+export function Sidebar({ activeItem = 'Home', onNavItemClick }) {
   const navItems = [
-    { name: 'Home', icon: Home, active: true },
-    { name: 'Find Patient', icon: Search, active: false },
-    { name: 'Patient Overview', icon: User, active: false },
-    { name: 'What Matters Now', icon: HeartPulse, active: false },
-    { name: 'Ask Health Memory', icon: MessageSquare, active: false },
-    { name: 'Patient Journey', icon: Clock, active: false },
-    { name: 'Medications', icon: Pill, active: false },
-    { name: 'Medical Documents', icon: FileText, active: false },
-    { name: 'Upcoming & Follow-ups', icon: Calendar, active: false },
-    { name: 'Emergency Profile', icon: AlertTriangle, active: false },
+    { name: 'Home', icon: Home },
+    { name: 'Find Patient', icon: Search },
+    { name: 'Patient Overview', icon: User },
+    { name: 'What Matters Now', icon: HeartPulse },
+    { name: 'Ask Health Memory', icon: MessageSquare },
+    { name: 'Patient Journey', icon: Clock },
+    { name: 'Medications', icon: Pill },
+    { name: 'Medical Documents', icon: FileText },
+    { name: 'Upcoming & Follow-ups', icon: Calendar },
+    { name: 'Emergency Profile', icon: AlertTriangle },
   ];
+
+  const handleClick = (name, e) => {
+    e.preventDefault();
+    if (onNavItemClick) {
+      onNavItemClick(name);
+    }
+  };
 
   return (
     <aside className="w-64 bg-white border-r border-slate-200/80 h-screen flex flex-col fixed top-0 left-0 shadow-sm z-20">
@@ -33,28 +40,34 @@ export function Sidebar() {
 
       <nav className="flex-1 overflow-y-auto px-4 py-4">
         <ul className="space-y-1.5">
-          {navItems.map((item) => (
-            <li key={item.name}>
-              <a 
-                href="#" 
-                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                  item.active 
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25' 
-                    : 'text-slate-600 hover:bg-blue-50/70 hover:text-blue-700'
-                }`}
-              >
-                <item.icon size={18} className={item.active ? 'text-white' : 'text-slate-400 group-hover:text-blue-600'} />
-                {item.name}
-              </a>
-            </li>
-          ))}
+          {navItems.map((item) => {
+            const isActive = activeItem === item.name;
+            return (
+              <li key={item.name}>
+                <button 
+                  onClick={(e) => handleClick(item.name, e)}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all text-left ${
+                    isActive 
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25' 
+                      : 'text-slate-600 hover:bg-blue-50/70 hover:text-blue-700'
+                  }`}
+                >
+                  <item.icon size={18} className={isActive ? 'text-white' : 'text-slate-400 group-hover:text-blue-600'} />
+                  {item.name}
+                </button>
+              </li>
+            );
+          })}
         </ul>
 
         <div className="mt-6 pt-4 border-t border-slate-100">
-          <a href="#" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-blue-50/70 hover:text-blue-700 transition-colors">
+          <button 
+            onClick={(e) => handleClick('Settings', e)}
+            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-blue-50/70 hover:text-blue-700 transition-colors text-left"
+          >
             <Settings size={18} className="text-slate-400" />
             Settings
-          </a>
+          </button>
         </div>
       </nav>
 

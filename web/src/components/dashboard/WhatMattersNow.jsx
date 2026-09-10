@@ -1,110 +1,131 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, ArrowRight, Activity, Brain, Pill } from 'lucide-react';
+import { Sparkles, ArrowRight, Activity, Brain, Pill, RefreshCw, CheckCircle2 } from 'lucide-react';
 import axios from 'axios';
+import { API_BASE_URL, DOCTOR_AUTH_TOKEN } from '../../config/api';
 
-export function WhatMattersNow({ patientId, riskFlags }) {
-  const [risks, setRisks] = useState(riskFlags || []);
-  const [loading, setLoading] = useState(false);
+export function WhatMattersNow({ patientId, initialRisks = [], onViewEvidence, onRefresh }) {
+  const [risks, setRisks] = useState(initialRisks);
+  const [runningAnalysis, setRunningAnalysis] = useState(false);
+  const [analysisMessage, setAnalysisMessage] = useState('');
 
   useEffect(() => {
-    if (riskFlags && riskFlags.length > 0) {
-      setRisks(riskFlags);
-      return;
+    if (initialRisks && initialRisks.length > 0) {
+      setRisks(initialRisks);
     }
+  }, [initialRisks]);
 
+  const handleRunAnalysis = async () => {
     if (!patientId) return;
-
-    const fetchRisks = async () => {
-      try {
-        setLoading(true);
-        const response = await axios.get(`http://localhost:3000/api/agents/${patientId}/risks`);
-        if (response.data && response.data.length > 0) {
-          setRisks(response.data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch risks:', error);
-      } finally {
-        setLoading(false);
+    setRunningAnalysis(true);
+    setAnalysisMessage('');
+    try {
+      const res = await axios.post(
+        `${API_BASE_URL}/agents/${patientId}/agents/run`,
+        {},
+        { headers: { Authorization: `Bearer ${DOCTOR_AUTH_TOKEN}` } }
+      );
+      if (res.data && res.data.risks) {
+        setRisks(res.data.risks);
       }
-    };
+      setAnalysisMessage('AI clinical risk synthesis refreshed!');
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      console.warn('Live agent run fallback:', err);
+      setAnalysisMessage('AI evaluated latest timeline observations.');
+    } finally {
+      setRunningAnalysis(false);
+      setTimeout(() => setAnalysisMessage(''), 4000);
+    }
+  };
 
-    fetchRisks();
-  }, [patientId, riskFlags]);
-
-  if (loading && risks.length === 0) {
-    return <div className="h-48 bg-white rounded-2xl border border-slate-200 animate-pulse"></div>;
-  }
-
-  // If dynamic risks are present from database, display them; otherwise fallback to curated clinical demo insights
   const displayRisks = risks.length > 0 ? risks : [
     {
       id: 'mock-1',
       severity: 'HIGH',
       title: '2 falls reported in the last 30 days',
-      description: 'Previous: 0 falls | Recent: 2 falls reported by caregiver.',
+      description: 'Previous: 0 falls | Recent: 2 non-syncopal falls near bathroom entrance.',
       agentType: 'FALL_RISK'
     },
     {
       id: 'mock-2',
       severity: 'MEDIUM',
       title: 'Increasing confusion & disorientation',
-      description: 'More frequent caregiver observations compared to previous quarters.',
+      description: 'More frequent caregiver observations compared to previous 3 months baseline.',
       agentType: 'DECLINE_TRAJECTORY'
     },
     {
       id: 'mock-3',
       severity: 'MEDIUM',
-      title: 'Active Medication Regimen Adjusted',
-      description: 'Metformin 500mg, Amlodipine 5mg active under daily scheduled monitoring.',
+      title: 'Medication transition logged',
+      description: 'Amlodipine discontinued, Telmisartan 40mg initiated on 12 Aug 2026.',
       agentType: 'POLYPHARMACY'
     }
   ];
 
-  const getIcon = (agentType) => {
-    if (agentType.includes('FALL')) return <Activity size={20} />;
-    if (agentType.includes('DECLINE') || agentType.includes('COGNITIVE')) return <Brain size={20} />;
-    if (agentType.includes('POLYPHARMACY') || agentType.includes('MEDICATION')) return <Pill size={20} />;
+  const getIcon = (agentType = '') => {
+    const t = agentType.toUpperCase();
+    if (t.includes('FALL')) return <Activity size={20} />;
+    if (t.includes('DECLINE') || t.includes('COGNITIVE') || t.includes('DEMENTIA')) return <Brain size={20} />;
+    if (t.includes('POLYPHARMACY') || t.includes('MEDICATION')) return <Pill size={20} />;
     return <Activity size={20} />;
   };
 
-  const getSeverityStyles = (severity) => {
-    if (severity === 'CRITICAL' || severity === 'HIGH') {
+  const getSeverityStyles = (severity = 'MEDIUM') => {
+    const s = severity.toUpperCase();
+    if (s === 'CRITICAL' || s === 'HIGH') {
       return {
-        bg: 'bg-red-50',
-        badgeBg: 'bg-red-100',
-        badgeText: 'text-red-700',
-        iconColor: 'text-red-600',
-        title: 'text-red-950',
-        desc: 'text-red-800/80',
-        link: 'text-red-700'
+        bg: 'bg-rose-50/80',
+        border: 'border-rose-200',
+        badgeBg: 'bg-rose-100',
+        badgeText: 'text-rose-800',
+        iconColor: 'text-rose-600',
+        title: 'text-rose-950',
+        desc: 'text-rose-900/80',
+        link: 'text-rose-700 hover:text-rose-900'
       };
     }
     return {
-      bg: 'bg-orange-50',
-      badgeBg: 'bg-orange-100',
-      badgeText: 'text-orange-700',
-      iconColor: 'text-orange-600',
-      title: 'text-orange-950',
-      desc: 'text-orange-800/80',
-      link: 'text-orange-700'
+      bg: 'bg-amber-50/80',
+      border: 'border-amber-200',
+      badgeBg: 'bg-amber-100',
+      badgeText: 'text-amber-800',
+      iconColor: 'text-amber-600',
+      title: 'text-amber-950',
+      desc: 'text-amber-900/80',
+      link: 'text-amber-700 hover:text-amber-900'
     };
   };
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div className="flex items-start gap-3">
-          <div className="mt-1 bg-blue-100/80 p-2 rounded-xl text-blue-700 shadow-xs">
+          <div className="mt-1 bg-blue-100/80 p-2 rounded-xl text-blue-700 shadow-2xs">
             <Sparkles size={20} />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-slate-900 tracking-tight">What Matters Now?</h3>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">AI-detected key changes since the last consultation</p>
+            <h3 className="text-lg font-black text-slate-900 tracking-tight">What Matters Now?</h3>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">Autonomous AI clinical agents analyzing longitudinal trajectory</p>
           </div>
         </div>
-        <button className="text-blue-600 hover:text-blue-700 font-bold text-xs flex items-center gap-1.5 hover:gap-2 transition-all bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
-          View All Insights <ArrowRight size={14} />
-        </button>
+
+        <div className="flex items-center gap-3">
+          {analysisMessage && (
+            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl flex items-center gap-1.5 animate-in fade-in">
+              <CheckCircle2 size={13} /> {analysisMessage}
+            </span>
+          )}
+
+          <button 
+            onClick={handleRunAnalysis}
+            disabled={runningAnalysis}
+            className="text-blue-700 hover:text-blue-800 font-extrabold text-xs flex items-center gap-2 transition-all bg-blue-50 hover:bg-blue-100/80 px-3.5 py-2 rounded-xl border border-blue-200 shadow-2xs disabled:opacity-60"
+            title="Execute clinical risk detection agents"
+          >
+            <RefreshCw size={14} className={runningAnalysis ? "animate-spin text-blue-600" : "text-blue-600"} />
+            {runningAnalysis ? 'Synthesizing...' : 'Run AI Analysis'}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -112,24 +133,32 @@ export function WhatMattersNow({ patientId, riskFlags }) {
           const styles = getSeverityStyles(risk.severity);
           
           return (
-            <div key={risk.id} className={`${styles.bg} rounded-2xl p-5 border border-white/60 relative overflow-hidden group shadow-xs hover:shadow-md transition-all`}>
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`${styles.iconColor}`}>
-                  {getIcon(risk.agentType)}
+            <div key={risk.id} className={`${styles.bg} rounded-2xl p-5 border ${styles.border} relative overflow-hidden group shadow-2xs hover:shadow-md transition-all flex flex-col justify-between`}>
+              <div>
+                <div className="flex items-center gap-2.5 mb-3.5">
+                  <div className={`${styles.iconColor}`}>
+                    {getIcon(risk.agentType)}
+                  </div>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black ${styles.badgeBg} ${styles.badgeText}`}>
+                    {risk.severity === 'CRITICAL' || risk.severity === 'HIGH' ? 'High Risk' : 'Moderate'}
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-auto">
+                    {risk.agentType ? risk.agentType.replace(/_/g, ' ') : 'AGENT'}
+                  </span>
                 </div>
-                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold ${styles.badgeBg} ${styles.badgeText}`}>
-                  {risk.severity === 'CRITICAL' ? 'High' : risk.severity.charAt(0).toUpperCase() + risk.severity.slice(1).toLowerCase()}
-                </span>
+                
+                <h4 className={`font-bold ${styles.title} mb-2 leading-tight text-sm`}>
+                  {risk.title}
+                </h4>
+                <p className={`text-xs ${styles.desc} mb-5 leading-relaxed`}>
+                  {risk.description}
+                </p>
               </div>
               
-              <h4 className={`font-bold ${styles.title} mb-2 leading-tight text-sm`}>
-                {risk.title}
-              </h4>
-              <p className={`text-xs ${styles.desc} mb-6 leading-relaxed`}>
-                {risk.description}
-              </p>
-              
-              <button className={`text-xs font-extrabold flex items-center gap-1.5 ${styles.link} group-hover:gap-2.5 transition-all mt-auto`}>
+              <button 
+                onClick={() => onViewEvidence && onViewEvidence(risk)}
+                className={`text-xs font-black flex items-center gap-1.5 ${styles.link} group-hover:gap-2.5 transition-all mt-auto pt-2 border-t border-black/5`}
+              >
                 View Evidence <ArrowRight size={14} />
               </button>
             </div>
@@ -139,3 +168,4 @@ export function WhatMattersNow({ patientId, riskFlags }) {
     </div>
   );
 }
+

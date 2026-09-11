@@ -1025,7 +1025,7 @@ app.use('/api/agents', authenticateToken, agentsRouter);
 
 // --- AI CHAT ENGINE (GEMINI CLINICAL HEALTH MEMORY) ---
 app.post('/api/chat', authenticateToken, async (req: any, res: any) => {
-  const { patientId, message } = req.body;
+  const { patientId, patientName: clientPatientName, message } = req.body;
   if (!message || !message.trim()) {
     return res.status(400).json({ error: 'Message is required' });
   }
@@ -1034,36 +1034,50 @@ app.post('/api/chat', authenticateToken, async (req: any, res: any) => {
     let targetPatientProfile: any = null;
     let targetPatientUser: any = null;
 
-    // 1. Try finding by userId or profile ID
-    if (patientId) {
-      targetPatientUser = await prisma.user.findUnique({
-        where: { id: patientId },
+    // Resolve patient across search terms (ID, Health ID, Name, Email)
+    const searchTerms = [patientId, clientPatientName].filter(Boolean).map(s => String(s).trim());
+
+    for (const q of searchTerms) {
+      if (!q || q === 'default-patient') continue;
+
+      // 1. Try finding User by exact ID, healthId, name (case-insensitive substring), or email
+      targetPatientUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { id: q },
+            { healthId: q },
+            { healthId: { contains: q, mode: 'insensitive' } },
+            { name: { contains: q, mode: 'insensitive' } },
+            { email: { contains: q, mode: 'insensitive' } },
+          ]
+        },
         include: { patientProfile: true }
       });
 
-      if (!targetPatientUser) {
-        // Try by healthId
-        targetPatientUser = await prisma.user.findUnique({
-          where: { healthId: patientId },
-          include: { patientProfile: true }
-        });
-      }
-
       if (targetPatientUser?.patientProfile) {
         targetPatientProfile = targetPatientUser.patientProfile;
-      } else {
-        targetPatientProfile = await prisma.patientProfile.findUnique({
-          where: { id: patientId },
-          include: { user: true }
-        });
-        if (targetPatientProfile) {
-          targetPatientUser = targetPatientProfile.user;
-        }
+        break;
+      }
+
+      // 2. Try finding PatientProfile by id or userId
+      targetPatientProfile = await prisma.patientProfile.findFirst({
+        where: {
+          OR: [
+            { id: q },
+            { userId: q }
+          ]
+        },
+        include: { user: true }
+      });
+
+      if (targetPatientProfile) {
+        targetPatientUser = targetPatientProfile.user;
+        break;
       }
     }
 
-    // 2. Fallback to authenticated user's profile or first available patient profile
-    if (!targetPatientProfile) {
+    // 3. Fallback to authenticated user's profile if user is a patient
+    if (!targetPatientProfile && req.user?.userId && req.user.userId !== 'doctor-session') {
       targetPatientProfile = await prisma.patientProfile.findUnique({
         where: { userId: req.user.userId },
         include: { user: true }
@@ -1073,12 +1087,18 @@ app.post('/api/chat', authenticateToken, async (req: any, res: any) => {
       }
     }
 
-    // 3. Fallback to most recent patient profile in the DB (for demo/caregiver access)
+    // 4. Default fallback: most recently updated patient profile with documents
     if (!targetPatientProfile) {
       targetPatientProfile = await prisma.patientProfile.findFirst({
-        orderBy: { createdAt: 'desc' },
+        where: { documents: { some: {} } },
         include: { user: true }
       });
+      if (!targetPatientProfile) {
+        targetPatientProfile = await prisma.patientProfile.findFirst({
+          orderBy: { createdAt: 'desc' },
+          include: { user: true }
+        });
+      }
       if (targetPatientProfile) {
         targetPatientUser = targetPatientProfile.user;
       }

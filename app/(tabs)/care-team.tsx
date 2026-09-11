@@ -46,7 +46,7 @@ const mockDoctors: DoctorProfile[] = [
     id: 'doc-1',
     name: 'Dr. Ramesh Kumar, MD',
     specialty: 'Chief Consultant • General Medicine',
-    fee: '$120',
+    fee: '₹120',
     rating: 4.9,
     reviewsCount: '2.8k+',
     experience: '14 Years',
@@ -65,7 +65,7 @@ const mockDoctors: DoctorProfile[] = [
     id: 'doc-2',
     name: 'Dr. Priya Nair, DM',
     specialty: 'Senior Neurologist • Memory Care',
-    fee: '$180',
+    fee: '₹180',
     rating: 4.9,
     reviewsCount: '3.5k+',
     experience: '11 Years',
@@ -84,7 +84,7 @@ const mockDoctors: DoctorProfile[] = [
     id: 'doc-3',
     name: 'Dr. Mason Lee, MD',
     specialty: 'Cardiologist • Heart Institute',
-    fee: '$200',
+    fee: '₹200',
     rating: 4.8,
     reviewsCount: '4.1k+',
     experience: '12 Years',
@@ -156,9 +156,9 @@ export default function CareTeamScreen() {
   };
 
   const copyHealthId = async () => {
-    const hid = user?.healthId || 'HT-8829-4109';
+    const hid = user?.healthId || '1234 5678 9012';
     await Clipboard.setStringAsync(hid);
-    Alert.alert('Health ID Copied', `${hid} copied to clipboard.`);
+    Alert.alert('Aadhar No Copied', `${hid} copied to clipboard.`);
   };
 
   const toggleFavorite = (docId: string) => {
@@ -230,16 +230,18 @@ export default function CareTeamScreen() {
           <View style={styles.hidCard}>
             <View style={styles.hidHeader}>
               <View style={styles.hidTag}>
-                <Ionicons name="shield-checkmark" size={14} color="#38BDF8" />
-                <Text style={styles.hidTagText}>Unique Health ID (HID)</Text>
+                <Ionicons name="card" size={14} color={colors.primary.blue} />
+                <Text style={styles.hidTagText}>Aadhar No</Text>
               </View>
               <TouchableOpacity onPress={copyHealthId} style={styles.copyBtn}>
-                <Ionicons name="copy-outline" size={16} color={colors.neutral.white} />
+                <Ionicons name="copy-outline" size={18} color={colors.text.secondary} />
                 <Text style={styles.copyBtnText}>Copy</Text>
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.hidNumber}>{user?.healthId || 'HT-8829-4109'}</Text>
+            <View style={{ marginTop: spacing.md }}>
+              <Text style={styles.hidNumber}>{user?.healthId || '1234 5678 9012'}</Text>
+            </View>
             <Text style={styles.hidDescription}>
               Share this identifier with your family or authorized caregivers to grant secure health timeline access.
             </Text>

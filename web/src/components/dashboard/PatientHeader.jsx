@@ -25,7 +25,7 @@ export function PatientHeader({ profile }) {
         </div>
         
         <div className="flex items-center gap-4 text-sm text-slate-500 font-medium mb-4">
-          <span className="text-slate-700 font-semibold">{profile.user?.healthId || 'N/A'}</span>
+          <span className="text-slate-700 font-semibold">Aadhar No: {profile.user?.healthId || 'N/A'}</span>
           <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
           <span>{profile.age || 78} years</span>
           <span className="w-1 h-1 bg-slate-300 rounded-full"></span>

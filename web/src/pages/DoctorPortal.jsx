@@ -13,6 +13,17 @@ export function DoctorPortal() {
   const [patientData, setPatientData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  // Multilingual State
+  const [selectedLanguage, setSelectedLanguage] = useState('en-IN');
+  
+  const languages = [
+    { code: 'en-IN', name: 'English' },
+    { code: 'hi-IN', name: 'हिंदी (Hindi)' },
+    { code: 'ta-IN', name: 'தமிழ் (Tamil)' },
+    { code: 'te-IN', name: 'తెలుగు (Telugu)' },
+    { code: 'bn-IN', name: 'বাংলা (Bengali)' },
+  ];
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -21,32 +32,13 @@ export function DoctorPortal() {
     setLoading(true);
     setError('');
     try {
-      // In a real scenario, this fetches by Aadhar. For now we use our test patient's real ID 
-      // or mock the returned profile matching the UI.
-      const res = await axios.get(`http://localhost:3000/api/connections/patients`, {
-        // Mock authorization token for testing
-        headers: { Authorization: `Bearer TEST_TOKEN` }
-      });
-      
-      // If the backend doesn't support fetching by Aadhar yet, we will just use the returned mock data 
-      // to match the visual design requested by the user perfectly.
-      const mockedProfileData = {
-        user: { name: 'Lakshmi R', healthId: '1234 5678 9012' },
-        age: 78,
-        gender: 'Female',
-        id: '848382cf-218c-4f4d-9b29-2a2dd375c6da', // Fayas MF actual ID for the agents to run correctly
-      };
-
-      setPatientData(mockedProfileData);
+      // Fetch the actual patient from the backend by Aadhar No (healthId)
+      const res = await axios.get(`http://localhost:3000/api/patients/by-healthid/${hidInput.trim()}`);
+      setPatientData(res.data);
     } catch (err) {
       console.error('Error finding patient', err);
-      // Fallback for visual demonstration of the requested design
-      setPatientData({
-        user: { name: 'Lakshmi R', healthId: '1234 5678 9012' },
-        age: 78,
-        gender: 'Female',
-        id: '848382cf-218c-4f4d-9b29-2a2dd375c6da', 
-      });
+      setError('Patient not found with that Aadhar No.');
+      setPatientData(null);
     } finally {
       setLoading(false);
     }
@@ -71,11 +63,27 @@ export function DoctorPortal() {
                   placeholder="e.g. 1234 5678 9012"
                 />
               </div>
+              {error && <span className="text-red-500 text-xs font-bold mt-1">{error}</span>}
             </div>
+            
+            {/* Language Selector */}
+            <div className="ml-auto mr-4 flex flex-col items-end">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Translate AI Insights</label>
+              <select 
+                value={selectedLanguage}
+                onChange={(e) => setSelectedLanguage(e.target.value)}
+                className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 outline-none font-medium"
+              >
+                {languages.map(lang => (
+                  <option key={lang.code} value={lang.code}>{lang.name}</option>
+                ))}
+              </select>
+            </div>
+
             <button 
               type="submit"
               disabled={loading}
-              className="ml-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl transition-colors disabled:opacity-50"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl transition-colors disabled:opacity-50"
             >
               {loading ? 'Searching...' : 'View Patient'}
             </button>
@@ -98,7 +106,7 @@ export function DoctorPortal() {
             <PatientHeader profile={patientData} />
 
             {/* AI Insights Row */}
-            <WhatMattersNow patientId={patientData.id} />
+            <WhatMattersNow patientId={patientData.id} language={selectedLanguage} />
 
             {/* Bottom Grid: Timeline & Sidebar */}
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -107,7 +115,7 @@ export function DoctorPortal() {
               </div>
               <div className="flex flex-col gap-6">
                 <div className="flex-1">
-                  <AskHealthMemory patientId={patientData.id} />
+                  <AskHealthMemory patientId={patientData.id} language={selectedLanguage} />
                 </div>
                 <div className="flex-1">
                   <RecentDocuments />

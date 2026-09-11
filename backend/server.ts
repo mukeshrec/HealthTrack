@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-dotenv.config();
+dotenv.config(); // trigger restart 2
 
 import express from 'express';
 import cors from 'cors';
@@ -103,9 +103,62 @@ app.post('/api/patients/profile', authenticateToken, async (req: any, res: any) 
 
 app.get('/api/patients/profile', authenticateToken, async (req: any, res: any) => {
   try {
-    const profile = await prisma.patientProfile.findUnique({ where: { userId: req.user.userId } });
-    res.json(profile);
-  } catch (error) { res.status(500).json({ error: 'Failed to fetch profile' }); }
+    const profile = await prisma.patientProfile.findUnique({
+      where: { userId: req.user.id },
+    });
+    res.json(profile || {});
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+app.get('/api/patients/by-healthid/:healthId', async (req: any, res: any) => {
+  try {
+    const { healthId } = req.params;
+    const user = await prisma.user.findUnique({
+      where: { healthId },
+      include: {
+        patientProfile: true
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+
+    res.json({
+      id: user.id, // Need this to pass to agents
+      user: {
+        name: user.name,
+        healthId: user.healthId
+      },
+      age: user.patientProfile?.personalDetails ? (user.patientProfile.personalDetails as any).age : 78,
+      gender: user.patientProfile?.personalDetails ? (user.patientProfile.personalDetails as any).gender : 'Female',
+      bloodGroup: user.patientProfile?.medicalHistory ? (user.patientProfile.medicalHistory as any).bloodGroup : 'B+',
+      city: 'Chennai, Tamil Nadu' // Default fallback
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch patient' });
+  }
+});
+
+// --- MULTILINGUAL TRANSLATION ROUTE ---
+import { translateText } from './src/services/sarvam';
+
+app.post('/api/translate', async (req: any, res: any) => {
+  try {
+    const { text, targetLanguage } = req.body;
+    if (!text || !targetLanguage) {
+      return res.status(400).json({ error: 'Text and targetLanguage are required' });
+    }
+    const translated = await translateText(text, targetLanguage);
+    res.json({ translatedText: translated });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Translation failed' });
+  }
 });
 
 // --- HEALTH MEMORY ROUTES ---
@@ -695,7 +748,7 @@ app.post('/api/connections/accept', authenticateToken, async (req: any, res: any
 // Global in-memory phone store for instantaneous synchronization & fallbacks
 const patientPhoneStore: Record<string, string> = {
   'patient-8829': '+91 98765 43210',
-  'HT-8829-4109': '+91 98765 43210',
+  '1234 5678 9012': '+91 98765 43210',
   'default-patient': '+91 98765 43210'
 };
 
@@ -730,8 +783,8 @@ app.get('/api/connections/patients', authenticateToken, async (req: any, res: an
         {
           id: 'patient-8829',
           name: 'Lakshmi Devi',
-          healthId: 'HT-8829-4109',
-          phone: patientPhoneStore['patient-8829'] || patientPhoneStore['HT-8829-4109'] || '+91 98765 43210',
+          healthId: '1234 5678 9012',
+          phone: patientPhoneStore['patient-8829'] || patientPhoneStore['1234 5678 9012'] || '+91 98765 43210',
           patientProfile: null,
           age: 78,
           status: 'Normal Vitals',
@@ -823,7 +876,7 @@ app.post('/api/chat', authenticateToken, async (req: any, res: any) => {
     }
 
     const patientName = targetPatientUser?.name || 'Lakshmi Devi';
-    const patientHealthId = targetPatientUser?.healthId || 'HT-8829-4109';
+    const patientHealthId = targetPatientUser?.healthId || '1234 5678 9012';
 
     // 5. Run Gemini AI reasoning over all patient health memory
     const reply = await generateHealthMemoryChatResponse({
@@ -954,7 +1007,7 @@ app.post('/api/patients/phone', authenticateToken, async (req: any, res: any) =>
     patientPhoneStore[patientId] = cleanPhone;
   }
   patientPhoneStore['patient-8829'] = cleanPhone;
-  patientPhoneStore['HT-8829-4109'] = cleanPhone;
+  patientPhoneStore['1234 5678 9012'] = cleanPhone;
   patientPhoneStore['default-patient'] = cleanPhone;
 
   try {

@@ -19,8 +19,18 @@ interface ActiveRiskAlertsProps {
 
 export function ActiveRiskAlerts({ patientId, token }: ActiveRiskAlertsProps) {
   const [risks, setRisks] = useState<RiskFlag[]>([]);
+  const [translatedRisks, setTranslatedRisks] = useState<RiskFlag[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [translating, setTranslating] = useState(false);
+  const [language, setLanguage] = useState('en-IN');
+
+  const languages = [
+    { code: 'en-IN', name: 'EN' },
+    { code: 'hi-IN', name: 'HI' },
+    { code: 'ta-IN', name: 'TA' },
+    { code: 'te-IN', name: 'TE' },
+  ];
 
   const fetchRisks = async () => {
     if (!token || !patientId) return;
@@ -32,6 +42,7 @@ export function ActiveRiskAlerts({ patientId, token }: ActiveRiskAlertsProps) {
       if (response.ok) {
         const data = await response.json();
         setRisks(data);
+        setTranslatedRisks(data);
         // If we found risks while analyzing, we can stop the analyzing state early
         if (data.length > 0) setIsAnalyzing(false);
       }
@@ -45,6 +56,50 @@ export function ActiveRiskAlerts({ patientId, token }: ActiveRiskAlertsProps) {
   useEffect(() => {
     fetchRisks();
   }, [patientId, token]);
+
+  useEffect(() => {
+    const translateContent = async () => {
+      if (risks.length === 0 || language === 'en-IN') {
+        setTranslatedRisks(risks);
+        return;
+      }
+
+      setTranslating(true);
+      try {
+        const promises = risks.map(async (risk) => {
+          const titleRes = await fetch(`${API_BASE_URL}/translate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: risk.title, targetLanguage: language })
+          });
+          const titleData = await titleRes.json();
+          
+          const descRes = await fetch(`${API_BASE_URL}/translate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: risk.description, targetLanguage: language })
+          });
+          const descData = await descRes.json();
+          
+          return {
+            ...risk,
+            title: titleData.translatedText || risk.title,
+            description: descData.translatedText || risk.description
+          };
+        });
+
+        const translated = await Promise.all(promises);
+        setTranslatedRisks(translated);
+      } catch (error) {
+        console.error('Translation failed:', error);
+        setTranslatedRisks(risks);
+      } finally {
+        setTranslating(false);
+      }
+    };
+
+    translateContent();
+  }, [risks, language]);
 
   const triggerAgents = async () => {
     try {
@@ -123,8 +178,31 @@ export function ActiveRiskAlerts({ patientId, token }: ActiveRiskAlertsProps) {
             <Ionicons name="warning" size={16} color="#DC2626" />
           </View>
           <Text style={styles.title}>Active AI Risk Alerts</Text>
+          {translating && <ActivityIndicator size="small" color="#7C3AED" style={{ marginLeft: 8 }} />}
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 6, padding: 2, marginRight: 8 }}>
+            {languages.map(lang => (
+              <TouchableOpacity 
+                key={lang.code}
+                onPress={() => setLanguage(lang.code)}
+                style={{
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 4,
+                  backgroundColor: language === lang.code ? '#FFFFFF' : 'transparent',
+                  shadowColor: language === lang.code ? '#000' : 'transparent',
+                  shadowOpacity: 0.1,
+                  shadowRadius: 2,
+                  elevation: language === lang.code ? 1 : 0
+                }}
+              >
+                <Text style={{ fontSize: 10, fontWeight: language === lang.code ? '700' : '500', color: language === lang.code ? '#0F172A' : '#64748B' }}>
+                  {lang.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
           <TouchableOpacity style={styles.refreshBtn} onPress={fetchRisks}>
             <Ionicons name="refresh" size={16} color={colors.primary.blue} />
           </TouchableOpacity>
@@ -134,13 +212,13 @@ export function ActiveRiskAlerts({ patientId, token }: ActiveRiskAlertsProps) {
         </View>
       </View>
 
-      {risks.length === 0 ? (
+      {translatedRisks.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>No active risks detected for this patient.</Text>
         </View>
       ) : (
         <View style={styles.list}>
-          {risks.map((risk) => {
+          {translatedRisks.map((risk) => {
             const sevStyle = getSeverityStyle(risk.severity);
             return (
               <View key={risk.id} style={[styles.card, { backgroundColor: sevStyle.bg, borderColor: sevStyle.border }]}>

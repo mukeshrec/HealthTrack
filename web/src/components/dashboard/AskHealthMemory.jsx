@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Send, Bot, Sparkles, ArrowRight } from 'lucide-react';
 import axios from 'axios';
 
-export function AskHealthMemory({ patientId }) {
+export function AskHealthMemory({ patientId, language = 'en-IN' }) {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState('');
@@ -28,7 +28,24 @@ export function AskHealthMemory({ patientId }) {
         patientId,
         message: question
       });
-      setResponse(res.data.response);
+      
+      let finalResponse = res.data.response;
+      
+      if (language !== 'en-IN') {
+        try {
+          const transRes = await axios.post(`http://localhost:3000/api/translate`, { 
+            text: finalResponse, 
+            targetLanguage: language 
+          });
+          if (transRes.data.translatedText) {
+            finalResponse = transRes.data.translatedText;
+          }
+        } catch (e) {
+          console.error("Translation failed for chat", e);
+        }
+      }
+      
+      setResponse(finalResponse);
       setQuery('');
     } catch (error) {
       console.error('Chat error:', error);

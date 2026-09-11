@@ -36,10 +36,10 @@ export default function ProfileScreen() {
   const [biometricLock, setBiometricLock] = useState(true);
   const [guardianAlerts, setGuardianAlerts] = useState(true);
 
-  const healthId = user?.id ? `HID-${user.id.slice(0, 4).toUpperCase()}-2026` : 'HID-8829-2026';
+  const healthId = user?.id ? `1234 ${user.id.slice(0, 4).toUpperCase()} 9012` : '1234 5678 9012';
 
   const handleCopyHealthId = () => {
-    Alert.alert('Health ID Copied', `${healthId} has been copied to your clipboard.`);
+    Alert.alert('Aadhar No Copied', `${healthId} has been copied to your clipboard.`);
   };
 
   const handleExportRecords = () => {
@@ -114,9 +114,11 @@ export default function ProfileScreen() {
             activeOpacity={0.7}
           >
             <View style={styles.hidLeft}>
-              <Ionicons name="finger-print-outline" size={18} color={colors.primary.blue} />
-              <Text style={styles.hidLabel}>ABDM Health ID:</Text>
-              <Text style={styles.hidValue}>{healthId}</Text>
+              <Ionicons name="card" size={24} color={colors.primary.blue} />
+              <View>
+                <Text style={styles.hidLabel}>Aadhar No:</Text>
+                <Text style={styles.hidValue}>{healthId}</Text>
+              </View>
             </View>
             <Ionicons name="copy-outline" size={16} color={colors.primary.blue} />
           </TouchableOpacity>

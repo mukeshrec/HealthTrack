@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Sparkles, ArrowRight, Activity, Brain, Pill } from 'lucide-react';
 import axios from 'axios';
 
-export function WhatMattersNow({ patientId }) {
+export function WhatMattersNow({ patientId, language = 'en-IN' }) {
   const [risks, setRisks] = useState([]);
+  const [translatedRisks, setTranslatedRisks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [translating, setTranslating] = useState(false);
 
   useEffect(() => {
     if (!patientId) return;
@@ -14,7 +16,9 @@ export function WhatMattersNow({ patientId }) {
         setLoading(true);
         // Ensure to map to the correct backend port and endpoint
         const response = await axios.get(`http://localhost:3000/api/agents/${patientId}/risks`);
-        setRisks(response.data || []);
+        const data = response.data || [];
+        setRisks(data);
+        setTranslatedRisks(data); // Initial untranslated data
       } catch (error) {
         console.error('Failed to fetch risks:', error);
       } finally {
@@ -25,12 +29,44 @@ export function WhatMattersNow({ patientId }) {
     fetchRisks();
   }, [patientId]);
 
+  useEffect(() => {
+    const translateContent = async () => {
+      if (risks.length === 0 || language === 'en-IN') {
+        setTranslatedRisks(risks);
+        return;
+      }
+
+      setTranslating(true);
+      try {
+        const promises = risks.map(async (risk) => {
+          const titleRes = await axios.post(`http://localhost:3000/api/translate`, { text: risk.title, targetLanguage: language });
+          const descRes = await axios.post(`http://localhost:3000/api/translate`, { text: risk.description, targetLanguage: language });
+          return {
+            ...risk,
+            title: titleRes.data.translatedText || risk.title,
+            description: descRes.data.translatedText || risk.description
+          };
+        });
+
+        const translated = await Promise.all(promises);
+        setTranslatedRisks(translated);
+      } catch (error) {
+        console.error('Translation failed:', error);
+        setTranslatedRisks(risks); // Fallback to english
+      } finally {
+        setTranslating(false);
+      }
+    };
+
+    translateContent();
+  }, [risks, language]);
+
   if (loading) {
     return <div className="h-48 bg-white rounded-2xl border border-slate-200 animate-pulse"></div>;
   }
 
   // If no dynamic risks are found, we'll use mock data that exactly matches the design for demonstration
-  const displayRisks = risks.length > 0 ? risks : [
+  const displayRisks = translatedRisks.length > 0 ? translatedRisks : [
     {
       id: 'mock-1',
       severity: 'HIGH',
@@ -92,7 +128,10 @@ export function WhatMattersNow({ patientId }) {
             <Sparkles size={20} />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-slate-800">What Matters Now?</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-bold text-slate-800">What Matters Now?</h3>
+              {translating && <div className="w-3 h-3 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>}
+            </div>
             <p className="text-sm text-slate-500">AI-detected key changes since the last consultation</p>
           </div>
         </div>

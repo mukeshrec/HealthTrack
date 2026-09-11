@@ -92,7 +92,7 @@ export default function HealthMemoryScreen() {
     } catch (e) {
       console.warn('Could not fetch patients for caregiver:', e);
     }
-    const defaultP = { id: 'patient-8829', name: 'Lakshmi Devi', healthId: 'HT-8829-4109', age: 78 };
+    const defaultP = { id: 'patient-8829', name: 'Lakshmi Devi', healthId: '1234 5678 9012', age: 78 };
     setPatients([defaultP]);
     setSelectedPatient(defaultP);
     return defaultP;
@@ -337,7 +337,7 @@ export default function HealthMemoryScreen() {
                         {pat.name}
                       </Text>
                       <Text style={[styles.patientChipHID, isPatActive && styles.patientChipHIDActive]}>
-                        HID: {pat.healthId || 'HT-PATIENT'}
+                        Aadhar No: {pat.healthId || '1234 5678 9012'}
                       </Text>
                     </View>
                     {isPatActive && (
@@ -360,7 +360,7 @@ export default function HealthMemoryScreen() {
                   </Text>
                 </View>
                 <Text style={styles.activeBannerDesc}>
-                  Health ID: {selectedPatient.healthId || 'N/A'} • {records.length} Documents & Lab Reports Indexed
+                  Aadhar No: {selectedPatient.healthId || 'N/A'} • {records.length} Documents & Lab Reports Indexed
                 </Text>
 
                 <View style={styles.activeBannerActionsRow}>
